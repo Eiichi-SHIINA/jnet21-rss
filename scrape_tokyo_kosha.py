@@ -19,6 +19,19 @@ response.raise_for_status()
 
 response.encoding = response.apparent_encoding
 soup = BeautifulSoup(response.text, "html.parser")
+print("=== TOKYO KOSHA LINKS ===")
+
+for a in soup.find_all("a", href=True):
+    title = a.get_text(" ", strip=True)
+    href = a.get("href", "")
+
+    if title and (
+        "/topics/" in href
+        or "/support/" in href
+    ):
+        print(href, "|", title)
+
+print("=== END TOKYO KOSHA LINKS ===")
 
 rss = Element("rss", version="2.0")
 channel = SubElement(rss, "channel")
