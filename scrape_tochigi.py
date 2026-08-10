@@ -1,6 +1,7 @@
+import re
 import requests
 from bs4 import BeautifulSoup
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 from xml.etree.ElementTree import Element, SubElement, ElementTree
 
 FEEDS = [
@@ -8,11 +9,15 @@ FEEDS = [
         "name": "栃木県産業振興センター お知らせ",
         "url": "https://www.tochigi-iin.or.jp/home/10/",
         "output": "tochigi-news.xml",
+        # お知らせの記事URL
+        "article_pattern": r"^/home/10/home/10/\d+\.html$",
     },
     {
         "name": "栃木県産業振興センター 助成金",
         "url": "https://www.tochigi-iin.or.jp/home/11/",
         "output": "tochigi-subsidy.xml",
+        # 助成金の記事URL
+        "article_pattern": r"^/home/11/home/10/\d+\.html$",
     },
 ]
 
@@ -39,6 +44,7 @@ def create_feed(config):
     SubElement(channel, "description").text = config["name"]
 
     seen = set()
+    article_pattern = re.compile(config["article_pattern"])
 
     for link in soup.find_all("a", href=True):
         href = link.get("href", "")
@@ -48,16 +54,18 @@ def create_feed(config):
             continue
 
         url = urljoin(config["url"], href)
+        parsed = urlparse(url)
 
-        # 同一ページ自身や明らかなナビゲーションを除外
-        if url == config["url"]:
+        # 栃木県産業振興センター内のみ
+        if parsed.netloc != "www.tochigi-iin.or.jp":
             continue
 
+        # 記事URLのパターンに一致するものだけ取得
+        if not article_pattern.match(parsed.path):
+            continue
+
+        # 同じ記事の重複を除外
         if url in seen:
-            continue
-
-        # 栃木県産業振興センター内の記事リンクだけを対象
-        if "tochigi-iin.or.jp" not in url:
             continue
 
         seen.add(url)
