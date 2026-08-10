@@ -69,6 +69,8 @@ for a in soup.find_all("a", href=True):
     SubElement(item, "guid").text = clean_url
 
     count += 1
+    if count >= 30:
+        break
 
 ElementTree(rss).write(
     OUTPUT_FILE,
