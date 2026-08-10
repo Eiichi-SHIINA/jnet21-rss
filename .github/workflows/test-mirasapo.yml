@@ -1,13 +1,21 @@
-name: Test Mirasapo RSS
+name: Update Mirasapo RSS
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "0 */6 * * *"
+
+permissions:
+  contents: write
 
 jobs:
-  test:
+  update:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Download RSS
         run: |
           curl -L \
@@ -16,13 +24,10 @@ jobs:
             -o mirasapo.xml \
             "https://mirasapo-plus.go.jp/category/infomation/feed/"
 
-      - name: Check result
+      - name: Commit updated RSS
         run: |
-          echo "File size:"
-          wc -c mirasapo.xml
-          echo ""
-          echo "Item count:"
-          grep -c "<item>" mirasapo.xml
-          echo ""
-          echo "First lines:"
-          head -20 mirasapo.xml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add mirasapo.xml
+          git diff --cached --quiet || git commit -m "Update Mirasapo RSS"
+          git push
