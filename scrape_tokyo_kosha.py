@@ -19,19 +19,6 @@ response.raise_for_status()
 
 response.encoding = response.apparent_encoding
 soup = BeautifulSoup(response.text, "html.parser")
-print("=== TOKYO KOSHA LINKS ===")
-
-for a in soup.find_all("a", href=True):
-    title = a.get_text(" ", strip=True)
-    href = a.get("href", "")
-
-    if title and (
-        "/topics/" in href
-        or "/support/" in href
-    ):
-        print(href, "|", title)
-
-print("=== END TOKYO KOSHA LINKS ===")
 
 rss = Element("rss", version="2.0")
 channel = SubElement(rss, "channel")
@@ -43,12 +30,7 @@ SubElement(channel, "description").text = "東京都中小企業振興公社 公
 seen = set()
 count = 0
 
-main = soup.find("main")
-
-if main is None:
-    main = soup
-
-for a in main.find_all("a", href=True):
+for a in soup.find_all("a", href=True):
     title = a.get_text(" ", strip=True)
 
     if not title:
@@ -60,14 +42,14 @@ for a in main.find_all("a", href=True):
     if parsed.netloc != "www.tokyo-kosha.or.jp":
         continue
 
-    # ページ内リンクやメニュー類を除外
-    if url == SOURCE_URL:
+    # 「公社からのお知らせ」の記事だけを対象
+    if not parsed.path.startswith("/topics/"):
         continue
 
-    if title in [
-        "トップ",
-        "お知らせ",
-        "メインコンテンツへスキップ",
+    # 一覧ページ・イベントカレンダーは除外
+    if parsed.path in [
+        "/topics/index.html",
+        "/topics/event/",
     ]:
         continue
 
