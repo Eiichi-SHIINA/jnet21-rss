@@ -1,4 +1,3 @@
-import re
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
@@ -10,8 +9,6 @@ OUTPUT_FILE = "tokyo-kosha.xml"
 HEADERS = {
     "User-Agent": "Mozilla/5.0"
 }
-
-DATE_PATTERN = re.compile(r"^\d{4}\.\d{2}\.\d{2}$")
 
 response = requests.get(
     SOURCE_URL,
@@ -33,7 +30,12 @@ SubElement(channel, "description").text = "東京都中小企業振興公社 公
 seen = set()
 count = 0
 
-for a in soup.find_all("a", href=True):
+main = soup.find("main")
+
+if main is None:
+    main = soup
+
+for a in main.find_all("a", href=True):
     title = a.get_text(" ", strip=True)
 
     if not title:
@@ -45,10 +47,15 @@ for a in soup.find_all("a", href=True):
     if parsed.netloc != "www.tokyo-kosha.or.jp":
         continue
 
-    # メニューなどを除き、お知らせ一覧付近の記事リンクだけを対象にする
-    parent_text = a.parent.get_text(" ", strip=True) if a.parent else ""
+    # ページ内リンクやメニュー類を除外
+    if url == SOURCE_URL:
+        continue
 
-    if not re.search(r"\d{4}\.\d{2}\.\d{2}", parent_text):
+    if title in [
+        "トップ",
+        "お知らせ",
+        "メインコンテンツへスキップ",
+    ]:
         continue
 
     clean_url = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
