@@ -23,6 +23,8 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0"
 }
 
+SITE_ROOT = "https://www.tochigi-iin.or.jp/"
+
 
 def create_feed(config):
     response = requests.get(
@@ -33,15 +35,6 @@ def create_feed(config):
     response.raise_for_status()
 
     soup = BeautifulSoup(response.text, "html.parser")
-
-    if config["name"] == "栃木県産業振興センター 助成金":
-        print("=== SUBSIDY LINKS ===")
-        for a in soup.find_all("a", href=True):
-            title = a.get_text(" ", strip=True)
-            href = a.get("href", "")
-            if "3903" in href or "3915" in href or "/home/11/" in href:
-                print(href, "|", title)
-        print("=== END SUBSIDY LINKS ===")
 
     rss = Element("rss", version="2.0")
     channel = SubElement(rss, "channel")
@@ -59,7 +52,15 @@ def create_feed(config):
         if not title:
             continue
 
-        url = urljoin(config["url"], link["href"])
+        href = link["href"]
+
+        # 助成金ページは "home/11/3903.html" のような
+        # ルート基準の相対URLになっているため個別処理
+        if config["name"] == "栃木県産業振興センター 助成金":
+            url = urljoin(SITE_ROOT, href)
+        else:
+            url = urljoin(config["url"], href)
+
         parsed = urlparse(url)
 
         if parsed.netloc != "www.tochigi-iin.or.jp":
