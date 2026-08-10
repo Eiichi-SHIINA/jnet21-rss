@@ -18,6 +18,7 @@ response = requests.get(
 )
 response.raise_for_status()
 
+response.encoding = response.apparent_encoding
 soup = BeautifulSoup(response.text, "html.parser")
 
 rss = Element("rss", version="2.0")
