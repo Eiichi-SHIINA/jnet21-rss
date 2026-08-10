@@ -8,16 +8,14 @@ FEEDS = [
     {
         "name": "栃木県産業振興センター お知らせ",
         "url": "https://www.tochigi-iin.or.jp/home/10/",
+        "article_pattern": re.compile(r"^/home/10/home/10/\d+\.html$"),
         "output": "tochigi-news.xml",
-        # お知らせの記事URL
-        "article_pattern": r"^/home/10/home/10/\d+\.html$",
     },
     {
         "name": "栃木県産業振興センター 助成金",
         "url": "https://www.tochigi-iin.or.jp/home/11/",
+        "article_pattern": re.compile(r"^/home/11/\d+\.html$"),
         "output": "tochigi-subsidy.xml",
-        # 助成金の記事URL
-        "article_pattern": r"^/home/11/home/10/\d+\.html$",
     },
 ]
 
@@ -25,12 +23,11 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0"
 }
 
-
 def create_feed(config):
     response = requests.get(
         config["url"],
         headers=HEADERS,
-        timeout=30,
+        timeout=60,
     )
     response.raise_for_status()
 
@@ -44,27 +41,25 @@ def create_feed(config):
     SubElement(channel, "description").text = config["name"]
 
     seen = set()
-    article_pattern = re.compile(config["article_pattern"])
+    count = 0
 
     for link in soup.find_all("a", href=True):
-        href = link.get("href", "")
         title = link.get_text(" ", strip=True)
 
         if not title:
             continue
 
-        url = urljoin(config["url"], href)
+        url = urljoin(config["url"], link["href"])
         parsed = urlparse(url)
 
-        # 栃木県産業振興センター内のみ
         if parsed.netloc != "www.tochigi-iin.or.jp":
             continue
 
-        # 記事URLのパターンに一致するものだけ取得
-        if not article_pattern.match(parsed.path):
+        if not config["article_pattern"].match(parsed.path):
             continue
 
-        # 同じ記事の重複を除外
+        url = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
+
         if url in seen:
             continue
 
@@ -75,14 +70,15 @@ def create_feed(config):
         SubElement(item, "link").text = url
         SubElement(item, "guid").text = url
 
+        count += 1
+
     ElementTree(rss).write(
         config["output"],
         encoding="utf-8",
         xml_declaration=True,
     )
 
-    print(config["output"], len(seen))
-
+    print(config["output"], count)
 
 for feed in FEEDS:
     create_feed(feed)
