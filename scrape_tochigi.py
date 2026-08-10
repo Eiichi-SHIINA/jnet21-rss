@@ -23,6 +23,7 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0"
 }
 
+
 def create_feed(config):
     response = requests.get(
         config["url"],
@@ -34,13 +35,13 @@ def create_feed(config):
     soup = BeautifulSoup(response.text, "html.parser")
 
     if config["name"] == "栃木県産業振興センター 助成金":
-    print("=== SUBSIDY LINKS ===")
-    for a in soup.find_all("a", href=True):
-        title = a.get_text(" ", strip=True)
-        href = a.get("href", "")
-        if "3903" in href or "3915" in href or "/home/11/" in href:
-            print(href, "|", title)
-    print("=== END SUBSIDY LINKS ===")
+        print("=== SUBSIDY LINKS ===")
+        for a in soup.find_all("a", href=True):
+            title = a.get_text(" ", strip=True)
+            href = a.get("href", "")
+            if "3903" in href or "3915" in href or "/home/11/" in href:
+                print(href, "|", title)
+        print("=== END SUBSIDY LINKS ===")
 
     rss = Element("rss", version="2.0")
     channel = SubElement(rss, "channel")
@@ -88,6 +89,7 @@ def create_feed(config):
     )
 
     print(config["output"], count)
+
 
 for feed in FEEDS:
     create_feed(feed)
