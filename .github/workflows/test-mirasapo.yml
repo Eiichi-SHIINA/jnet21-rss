@@ -1,0 +1,28 @@
+name: Test Mirasapo RSS
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download RSS
+        run: |
+          curl -L \
+            --fail \
+            --show-error \
+            -o mirasapo.xml \
+            "https://mirasapo-plus.go.jp/category/infomation/feed/"
+
+      - name: Check result
+        run: |
+          echo "File size:"
+          wc -c mirasapo.xml
+          echo ""
+          echo "Item count:"
+          grep -c "<item>" mirasapo.xml
+          echo ""
+          echo "First lines:"
+          head -20 mirasapo.xml
