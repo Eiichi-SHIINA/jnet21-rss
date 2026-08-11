@@ -30,7 +30,6 @@ SubElement(channel, "description").text = "B-nest セミナー・イベント・
 seen = set()
 count = 0
 
-# 一覧に掲載されている記事リンクを抽出
 for a in soup.find_all("a", href=True):
     title = a.get_text(" ", strip=True)
     href = a.get("href", "")
@@ -38,7 +37,20 @@ for a in soup.find_all("a", href=True):
     if not title:
         continue
 
-    # ナビゲーション・タグ・検索ページ等を除外
+    if title in [
+        "ホーム",
+        "施設予約",
+        "施設利用",
+        "B-nestとは",
+        "お問い合わせ",
+        "閉じる",
+        "トップ",
+    ]:
+        continue
+
+    if href.startswith("javascript:"):
+        continue
+
     if href.startswith("/search"):
         continue
 
@@ -54,7 +66,6 @@ for a in soup.find_all("a", href=True):
     ]:
         continue
 
-    # 一覧本体の記事は、リンク周辺に日付・カテゴリ情報がある
     parent = a.parent
     found_article = False
 
