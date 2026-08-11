@@ -1,3 +1,4 @@
+import re
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
@@ -35,6 +36,10 @@ for a in soup.find_all("a", href=True):
     title = a.get_text(" ", strip=True)
 
     if not title:
+        continue
+
+    # 過年度バックナンバーを除外
+    if re.match(r"^R\d+年度$", title):
         continue
 
     # 本文の更新情報エリア開始位置
