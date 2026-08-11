@@ -3,7 +3,7 @@ from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
 from xml.etree.ElementTree import Element, SubElement, ElementTree
 
-SOURCE_URL = "https://www.joho-kochi.or.jp/"
+SOURCE_URL = "https://www.joho-kochi.or.jp/center/bkno_2026.php"
 OUTPUT_FILE = "joho-kochi-news.xml"
 
 HEADERS = {
@@ -25,7 +25,7 @@ channel = SubElement(rss, "channel")
 
 SubElement(channel, "title").text = "高知県産業振興センター 新着情報"
 SubElement(channel, "link").text = SOURCE_URL
-SubElement(channel, "description").text = "高知県産業振興センター 新着情報"
+SubElement(channel, "description").text = "高知県産業振興センター 2026年度新着情報"
 
 seen = set()
 count = 0
@@ -34,17 +34,6 @@ for a in soup.find_all("a", href=True):
     title = a.get_text(" ", strip=True)
 
     if not title:
-        continue
-
-    # トップページの新着項目は日付表記を含む
-    if not any(
-        marker in title
-        for marker in [
-            "New ",
-            "/",
-            "-"
-        ]
-    ):
         continue
 
     url = urljoin(SOURCE_URL, a["href"])
@@ -56,6 +45,7 @@ for a in soup.find_all("a", href=True):
     ]:
         continue
 
+    # メニュー・一覧ページ自身を除外
     if url == SOURCE_URL:
         continue
 
