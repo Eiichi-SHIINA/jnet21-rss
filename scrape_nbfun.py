@@ -1,7 +1,7 @@
 import re
 import requests
 from bs4 import BeautifulSoup
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 from xml.etree.ElementTree import Element, SubElement, ElementTree
 
 SOURCE_URL = "https://nb-fun.jp/category/news"
@@ -10,6 +10,8 @@ OUTPUT_FILE = "nbfun-news.xml"
 HEADERS = {
     "User-Agent": "Mozilla/5.0"
 }
+
+ARTICLE_PATTERN = re.compile(r"^/news/\d+/?$")
 
 rss = Element("rss", version="2.0")
 channel = SubElement(rss, "channel")
@@ -43,25 +45,26 @@ for page in range(1, 4):
         if not title:
             continue
 
-        parent_text = a.parent.get_text(" ", strip=True) if a.parent else ""
-
-        if not re.search(r"\d{4}\.\d{2}\.\d{2}", parent_text):
-            continue
-
-        if title in ["次のページ »", "前のページ «"]:
-            continue
-
         url = urljoin(page_url, a["href"])
+        parsed = urlparse(url)
 
-        if url in seen:
+        if parsed.netloc != "nb-fun.jp":
             continue
 
-        seen.add(url)
+        if not ARTICLE_PATTERN.match(parsed.path):
+            continue
+
+        clean_url = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
+
+        if clean_url in seen:
+            continue
+
+        seen.add(clean_url)
 
         item = SubElement(channel, "item")
         SubElement(item, "title").text = title
-        SubElement(item, "link").text = url
-        SubElement(item, "guid").text = url
+        SubElement(item, "link").text = clean_url
+        SubElement(item, "guid").text = clean_url
 
         count += 1
 
