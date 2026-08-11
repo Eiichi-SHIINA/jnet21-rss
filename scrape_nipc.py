@@ -1,3 +1,4 @@
+import re
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
@@ -43,7 +44,7 @@ for page in range(1, 4):
             continue
 
         # 新着情報の記事タイトルは日付から始まる
-        if not title.startswith("2026/"):
+        if not re.match(r"^\d{4}/\d{2}/\d{2}", title):
             continue
 
         url = urljoin(page_url, a["href"])
