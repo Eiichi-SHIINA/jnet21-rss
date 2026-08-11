@@ -1,6 +1,6 @@
 import requests
 from bs4 import BeautifulSoup
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin
 from xml.etree.ElementTree import Element, SubElement, ElementTree
 
 SOURCE_URL = "https://www.joho-kochi.or.jp/center/bkno_2026.php"
@@ -29,6 +29,7 @@ SubElement(channel, "description").text = "高知県産業振興センター 202
 
 seen = set()
 count = 0
+started = False
 
 for a in soup.find_all("a", href=True):
     title = a.get_text(" ", strip=True)
@@ -36,36 +37,41 @@ for a in soup.find_all("a", href=True):
     if not title:
         continue
 
-    url = urljoin(SOURCE_URL, a["href"])
-    parsed = urlparse(url)
+    # 本文の更新情報エリア開始位置
+    if title == "補助金・融資など":
+        started = True
+        continue
 
-    if parsed.netloc not in [
-        "www.joho-kochi.or.jp",
-        "joho-kochi.or.jp",
+    if not started:
+        continue
+
+    # ページ内のカテゴリ移動リンクは除外
+    if title in [
+        "セミナー・イベント",
+        "その他お知らせ",
     ]:
         continue
 
-    # メニュー・一覧ページ自身を除外
+    href = a.get("href", "")
+
+    # ページ内アンカーやナビゲーションを除外
+    if href.startswith("#"):
+        continue
+
+    url = urljoin(SOURCE_URL, href)
+
     if url == SOURCE_URL:
         continue
 
-    clean_url = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
-
-    if parsed.query:
-        clean_url += f"?{parsed.query}"
-
-    if parsed.fragment:
-        clean_url += f"#{parsed.fragment}"
-
-    if clean_url in seen:
+    if url in seen:
         continue
 
-    seen.add(clean_url)
+    seen.add(url)
 
     item = SubElement(channel, "item")
     SubElement(item, "title").text = title
-    SubElement(item, "link").text = clean_url
-    SubElement(item, "guid").text = clean_url
+    SubElement(item, "link").text = url
+    SubElement(item, "guid").text = url
 
     count += 1
 
