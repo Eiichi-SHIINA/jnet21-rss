@@ -11,7 +11,7 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0"
 }
 
-DATE_PATTERN = re.compile(r"\d{4}\.\d{2}\.\d{2}")
+ARTICLE_PATTERN = re.compile(r"^/support/contents/\d+/?$")
 
 response = requests.get(
     SOURCE_URL,
@@ -39,40 +39,16 @@ for a in soup.find_all("a", href=True):
     if not title:
         continue
 
-    parent = a.parent
-    found_topic = False
-
-    for _ in range(5):
-        if parent is None:
-            break
-
-        text = parent.get_text(" ", strip=True)
-
-        if DATE_PATTERN.search(text):
-            found_topic = True
-            break
-
-        parent = parent.parent
-
-    if not found_topic:
-        continue
-
     url = urljoin(SOURCE_URL, a["href"])
     parsed = urlparse(url)
 
     if parsed.netloc not in ["www.miesc.or.jp", "miesc.or.jp"]:
         continue
 
-    if url == SOURCE_URL:
+    if not ARTICLE_PATTERN.match(parsed.path):
         continue
 
     clean_url = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
-
-    if parsed.query:
-        clean_url += f"?{parsed.query}"
-
-    if parsed.fragment:
-        clean_url += f"#{parsed.fragment}"
 
     if clean_url in seen:
         continue
