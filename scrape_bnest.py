@@ -1,6 +1,6 @@
 import requests
 from bs4 import BeautifulSoup
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin
 from xml.etree.ElementTree import Element, SubElement, ElementTree
 
 SOURCE_URL = "https://www.b-nest.jp/topics/"
@@ -30,51 +30,67 @@ SubElement(channel, "description").text = "B-nest セミナー・イベント・
 seen = set()
 count = 0
 
-main = soup.find("main")
-
-if main is None:
-    main = soup
-
-for a in main.find_all("a", href=True):
+# 一覧に掲載されている記事リンクを抽出
+for a in soup.find_all("a", href=True):
     title = a.get_text(" ", strip=True)
+    href = a.get("href", "")
 
     if not title:
         continue
 
-    url = urljoin(SOURCE_URL, a["href"])
-    parsed = urlparse(url)
-
-    # メニュー・カテゴリリンク等を除外
-    if url == SOURCE_URL:
+    # ナビゲーション・タグ・検索ページ等を除外
+    if href.startswith("/search"):
         continue
 
-    if title in [
-        "トップ",
-        "セミナー＆イベント情報",
-        "ブログ一覧",
-        "登録専門家検索",
-        "目的で探す",
-        "窓口相談スケジュール",
+    if href in [
+        "/",
+        "/topics/",
+        "/blog/",
+        "/profile/",
+        "/shisetsu/",
+        "/shien/",
+        "/kigyo-shien/",
+        "/soudan/",
     ]:
         continue
 
-    clean_url = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
+    # 一覧本体の記事は、リンク周辺に日付・カテゴリ情報がある
+    parent = a.parent
+    found_article = False
 
-    if parsed.query:
-        clean_url += f"?{parsed.query}"
+    for _ in range(5):
+        if parent is None:
+            break
 
-    if parsed.fragment:
-        clean_url += f"#{parsed.fragment}"
+        text = parent.get_text(" ", strip=True)
 
-    if clean_url in seen:
+        if (
+            "2026年" in text
+            and (
+                "講座・セミナー" in text
+                or "イベント" in text
+                or "各種公募・補助金情報" in text
+            )
+        ):
+            found_article = True
+            break
+
+        parent = parent.parent
+
+    if not found_article:
         continue
 
-    seen.add(clean_url)
+    url = urljoin(SOURCE_URL, href)
+
+    if url in seen:
+        continue
+
+    seen.add(url)
 
     item = SubElement(channel, "item")
     SubElement(item, "title").text = title
-    SubElement(item, "link").text = clean_url
-    SubElement(item, "guid").text = clean_url
+    SubElement(item, "link").text = url
+    SubElement(item, "guid").text = url
 
     count += 1
 
