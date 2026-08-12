@@ -12,7 +12,7 @@
 	<atom:link href="https://mirasapo-plus.go.jp/category/infomation/feed/" rel="self" type="application/rss+xml" />
 	<link>https://mirasapo-plus.go.jp</link>
 	<description>経済産業省 中小企業庁</description>
-	<lastBuildDate>Mon, 10 Aug 2026 05:49:59 +0000</lastBuildDate>
+	<lastBuildDate>Wed, 12 Aug 2026 07:58:13 +0000</lastBuildDate>
 	<language>ja</language>
 	<sy:updatePeriod>
 	hourly	</sy:updatePeriod>
@@ -1690,11 +1690,11 @@
 </ul>
 </div>
 <h2 id="schedule">公募スケジュール</h2>
-<div class="schedule__item">公募開始:<time datetime="2026-06-29">令和8年6月29日（月）</time></div>
+<div class="schedule__item">公募開始:2026<time datetime="2026-06-29">年6月29日（月曜）</time></div>
 <div></div>
-<div class="schedule__item">申請受付:<time datetime="2026-08-31">令和8年8月31日（月）</time></div>
+<div class="schedule__item">申請受付:<time datetime="2026-09-30T18:00">2026年9月30日（水曜）</time></div>
 <div></div>
-<div class="schedule__item">応募締切:<time datetime="2026-09-30T18:00">令和8年9月30日（水）18:00厳守</time></div>
+<div class="schedule__item">応募締切:<time datetime="2026-09-30T18:00">2026年10月30日（金曜）18時申請締切予定</time></div>
 <h2 id="apply">公募要領はこちらをクリックしてください</h2>
 <p>&nbsp;</p>
 <p><a href="https://mirasapo-plus.go.jp/wordpress/wp-content/uploads/2026/06/30141726/shinmono_application_guidelines_01-1.pdf" target="_blank" rel="noopener">新事業進出・ものづくり商業サービス補助金｜</a></p>
