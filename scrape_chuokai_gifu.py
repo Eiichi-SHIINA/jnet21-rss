@@ -29,7 +29,7 @@ SubElement(channel, "link").text = SOURCE_URL
 SubElement(channel, "description").text = "岐阜県中小企業団体中央会 掲載情報"
 
 seen = set()
-items = []
+count = 0
 
 for a in soup.find_all("a", href=True):
     title = a.get_text(" ", strip=True)
@@ -37,45 +37,31 @@ for a in soup.find_all("a", href=True):
     if not title:
         continue
 
-    # 年度切替・ページ上部・フッターなどを除外
-    if re.fullmatch(r"20\d{2}", title):
+    href = a.get("href", "")
+    url = urljoin(SOURCE_URL, href)
+
+    # 2026年の個別記事・PDF等を対象
+    if "/chuokai/news/2026/" not in url:
         continue
 
-    if title in [
-        "▲ページ上へもどる",
-        "個人情報の保護に関する基本方針",
-        "個人情報の利用目的",
-    ]:
+    # 年度一覧ページなどは除外
+    if url.endswith("news_new.html"):
         continue
-
-    # 記事タイトルには一覧上で日付が付いている
-    if not re.search(
-        r"\(20\d{2}\.\d{1,2}\.\d{1,2}\)",
-        title
-    ):
-        continue
-
-    url = urljoin(SOURCE_URL, a["href"])
 
     if url in seen:
         continue
 
     seen.add(url)
 
-    # タイトル末尾の日付だけ除去
-    clean_title = re.sub(
-        r"\s*[（(]20\d{2}\.\d{1,2}\.\d{1,2}[）)]\s*$",
-        "",
-        title
-    ).strip()
-
-    items.append((title, clean_title, url))
-
-for original_title, clean_title, url in items[:30]:
     item = SubElement(channel, "item")
-    SubElement(item, "title").text = clean_title
+    SubElement(item, "title").text = title
     SubElement(item, "link").text = url
     SubElement(item, "guid").text = url
+
+    count += 1
+
+    if count >= 30:
+        break
 
 ElementTree(rss).write(
     OUTPUT_FILE,
@@ -83,4 +69,4 @@ ElementTree(rss).write(
     xml_declaration=True,
 )
 
-print(OUTPUT_FILE, len(items[:30]))
+print(OUTPUT_FILE, count)
