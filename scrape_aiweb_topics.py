@@ -1,4 +1,3 @@
-import re
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
@@ -15,6 +14,8 @@ PAGES = [
     SOURCE_URL,
     "https://www.aiweb.or.jp/topics/index.html?p=2",
     "https://www.aiweb.or.jp/topics/index.html?p=3",
+    "https://www.aiweb.or.jp/topics/index.html?p=4",
+    "https://www.aiweb.or.jp/topics/index.html?p=5",
 ]
 
 rss = Element("rss", version="2.0")
@@ -38,7 +39,12 @@ for page_url in PAGES:
     response.encoding = response.apparent_encoding
     soup = BeautifulSoup(response.text, "html.parser")
 
-    for a in soup.find_all("a", href=True):
+    for heading in soup.find_all(["h2", "h3"]):
+        a = heading.find("a", href=True)
+
+        if a is None:
+            continue
+
         title = a.get_text(" ", strip=True)
 
         if not title:
@@ -46,11 +52,14 @@ for page_url in PAGES:
 
         url = urljoin(page_url, a["href"])
 
-        # 個別記事だけ取得
-        if not re.match(
-            r"^https://www\.aiweb\.or\.jp/topics/detail/\d+/?$",
-            url
-        ):
+        # 一覧・カテゴリページ等は除外
+        if url.rstrip("/") in [
+            "https://www.aiweb.or.jp",
+            "https://www.aiweb.or.jp/topics",
+        ]:
+            continue
+
+        if "/topics/index.html" in url:
             continue
 
         if url in seen:
