@@ -29,39 +29,42 @@ SubElement(channel, "title").text = "三重県中小企業団体中央会 中央
 SubElement(channel, "link").text = SOURCE_URL
 SubElement(channel, "description").text = "三重県中小企業団体中央会 中央会からのお知らせ"
 
+date_pattern = re.compile(
+    r"20\d{2}/\d{1,2}/\d{1,2}"
+)
+
 items = []
 seen = set()
 
-date_pattern = re.compile(r"20\d{2}/\d{1,2}/\d{1,2}")
+# 日付を起点にして、その直後の記事リンクを取得
+for text_node in soup.find_all(string=date_pattern):
 
-for a in soup.find_all("a", href=True):
+    match = date_pattern.search(str(text_node))
+
+    if not match:
+        continue
+
+    date_text = match.group()
+
+    # 日付の直後にある最初のリンクを記事リンクとして取得
+    a = text_node.find_next("a", href=True)
+
+    if a is None:
+        continue
+
     title = a.get_text(" ", strip=True)
+    title = re.sub(r"\s+", " ", title).strip()
 
     if not title:
         continue
 
-    title = re.sub(r"\s+", " ", title).strip()
-
-    # PDF/WEB等のアイコンリンクを除外
+    # PDF・WEB等のアイコンだけのリンクは除外
     if title in {
         "PDFファイル",
         "WEBページへ",
         "終了しました",
     }:
         continue
-
-    # 記事リンクの周辺から日付を取得
-    parent = a.parent
-    if parent is None:
-        continue
-
-    parent_text = parent.get_text(" ", strip=True)
-    match = date_pattern.search(parent_text)
-
-    if not match:
-        continue
-
-    date_text = match.group()
 
     href = a.get("href", "")
 
@@ -70,18 +73,35 @@ for a in soup.find_all("a", href=True):
 
     url = urljoin(SOURCE_URL, href)
 
-    key = (date_text, title, url)
+    key = (
+        date_text,
+        title,
+        url,
+    )
 
     if key in seen:
         continue
 
     seen.add(key)
 
-    year, month, day = map(int, date_text.split("/"))
-    date_key = year * 10000 + month * 100 + day
+    year, month, day = map(
+        int,
+        date_text.split("/")
+    )
+
+    date_key = (
+        year * 10000
+        + month * 100
+        + day
+    )
 
     items.append(
-        (date_key, date_text, title, url)
+        (
+            date_key,
+            date_text,
+            title,
+            url,
+        )
     )
 
 items.sort(
@@ -90,12 +110,16 @@ items.sort(
 )
 
 for date_key, date_text, title, url in items[:30]:
+
     item = SubElement(channel, "item")
 
     SubElement(item, "title").text = title
     SubElement(item, "link").text = url
 
-    unique_text = f"{date_text}|{title}|{url}"
+    unique_text = (
+        f"{date_text}|{title}|{url}"
+    )
+
     unique_id = hashlib.sha256(
         unique_text.encode("utf-8")
     ).hexdigest()
@@ -110,4 +134,7 @@ ElementTree(rss).write(
     xml_declaration=True,
 )
 
-print(OUTPUT_FILE, len(items[:30]))
+print(
+    OUTPUT_FILE,
+    len(items[:30])
+)
