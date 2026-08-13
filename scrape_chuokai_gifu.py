@@ -1,4 +1,5 @@
 import re
+import hashlib
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
@@ -39,7 +40,6 @@ for a in soup.find_all("a", href=True):
 
     title = re.sub(r"\s+", " ", title).strip()
 
-    # タイトル内に掲載日があるリンクだけ取得
     match = re.search(
         r"20\d{2}\.\d{1,2}\.\d{1,2}",
         title
@@ -48,7 +48,7 @@ for a in soup.find_all("a", href=True):
     if not match:
         continue
 
-    # 日付だけのリンクなどを除外
+    # 「日付だけ」「）」だけ等の補助リンクを除外
     title_without_date = re.sub(
         r"[（(]?\s*20\d{2}\.\d{1,2}\.\d{1,2}\s*[）)]?",
         "",
@@ -65,7 +65,7 @@ for a in soup.find_all("a", href=True):
 
     url = urljoin(SOURCE_URL, href)
 
-    # 同じタイトル＋URLの完全重複だけ除外
+    # 完全に同じ項目だけ重複除外
     key = (title, url)
 
     if key in seen:
@@ -73,10 +73,10 @@ for a in soup.find_all("a", href=True):
 
     seen.add(key)
 
-    date_parts = match.group().split(".")
-    year = int(date_parts[0])
-    month = int(date_parts[1])
-    day = int(date_parts[2])
+    year, month, day = map(
+        int,
+        match.group().split(".")
+    )
 
     date_key = year * 10000 + month * 100 + day
 
@@ -84,7 +84,6 @@ for a in soup.find_all("a", href=True):
         (date_key, title, url)
     )
 
-# 「中央会から」「関係機関から」をまとめて掲載日の新しい順にする
 items.sort(
     key=lambda x: x[0],
     reverse=True
@@ -92,12 +91,18 @@ items.sort(
 
 for date_key, title, url in items[:30]:
     item = SubElement(channel, "item")
+
     SubElement(item, "title").text = title
     SubElement(item, "link").text = url
 
-    # 同じURLに複数のお知らせがある場合も区別できるようにする
-    guid = f"{url}#{abs(hash(title))}"
-    SubElement(item, "guid").text = guid
+    unique_text = f"{url}|{title}"
+    unique_id = hashlib.sha256(
+        unique_text.encode("utf-8")
+    ).hexdigest()
+
+    SubElement(item, "guid").text = (
+        f"urn:chuokai-gifu:{unique_id}"
+    )
 
 ElementTree(rss).write(
     OUTPUT_FILE,
