@@ -28,48 +28,76 @@ SubElement(channel, "title").text = "岐阜県中小企業団体中央会 新着
 SubElement(channel, "link").text = SOURCE_URL
 SubElement(channel, "description").text = "岐阜県中小企業団体中央会 掲載情報"
 
+items = []
 seen = set()
-count = 0
 
 for a in soup.find_all("a", href=True):
     title = a.get_text(" ", strip=True)
-
-    if not title or title == "）":
-        parent = a.parent
-
-        if parent is not None:
-            title = parent.get_text(" ", strip=True)
 
     if not title:
         continue
 
     title = re.sub(r"\s+", " ", title).strip()
 
+    # タイトル内に掲載日があるリンクだけ取得
+    match = re.search(
+        r"20\d{2}\.\d{1,2}\.\d{1,2}",
+        title
+    )
+
+    if not match:
+        continue
+
+    # 日付だけのリンクなどを除外
+    title_without_date = re.sub(
+        r"[（(]?\s*20\d{2}\.\d{1,2}\.\d{1,2}\s*[）)]?",
+        "",
+        title
+    ).strip(" 　（）()、,")
+
+    if len(title_without_date) < 5:
+        continue
+
     href = a.get("href", "")
+
+    if not href or href.startswith("#"):
+        continue
+
     url = urljoin(SOURCE_URL, href)
 
-    # 2026年の個別記事・PDF等を対象
-    if "/chuokai/news/2026/" not in url:
+    # 同じタイトル＋URLの完全重複だけ除外
+    key = (title, url)
+
+    if key in seen:
         continue
 
-    # 年度一覧ページなどは除外
-    if url.endswith("news_new.html"):
-        continue
+    seen.add(key)
 
-    if url in seen:
-        continue
+    date_parts = match.group().split(".")
+    year = int(date_parts[0])
+    month = int(date_parts[1])
+    day = int(date_parts[2])
 
-    seen.add(url)
+    date_key = year * 10000 + month * 100 + day
 
+    items.append(
+        (date_key, title, url)
+    )
+
+# 「中央会から」「関係機関から」をまとめて掲載日の新しい順にする
+items.sort(
+    key=lambda x: x[0],
+    reverse=True
+)
+
+for date_key, title, url in items[:30]:
     item = SubElement(channel, "item")
     SubElement(item, "title").text = title
     SubElement(item, "link").text = url
-    SubElement(item, "guid").text = url
 
-    count += 1
-
-    if count >= 30:
-        break
+    # 同じURLに複数のお知らせがある場合も区別できるようにする
+    guid = f"{url}#{abs(hash(title))}"
+    SubElement(item, "guid").text = guid
 
 ElementTree(rss).write(
     OUTPUT_FILE,
@@ -77,4 +105,4 @@ ElementTree(rss).write(
     xml_declaration=True,
 )
 
-print(OUTPUT_FILE, count)
+print(OUTPUT_FILE, len(items[:30]))
