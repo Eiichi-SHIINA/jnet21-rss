@@ -34,8 +34,16 @@ count = 0
 for a in soup.find_all("a", href=True):
     title = a.get_text(" ", strip=True)
 
+    if not title or title == "）":
+        parent = a.parent
+
+        if parent is not None:
+            title = parent.get_text(" ", strip=True)
+
     if not title:
         continue
+
+    title = re.sub(r"\s+", " ", title).strip()
 
     href = a.get("href", "")
     url = urljoin(SOURCE_URL, href)
