@@ -5,7 +5,7 @@ from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 from xml.etree.ElementTree import Element, SubElement, ElementTree
 
-SOURCE_URL = "https://www.tohoku.meti.go.jp/"
+SOURCE_URL = "https://www.tohoku.meti.go.jp/koho/koshin/archive.html"
 OUTPUT_FILE = "tohoku-meti-news.xml"
 
 HEADERS = {
@@ -21,7 +21,7 @@ HEADERS = {
     "Accept-Language": "ja,en-US;q=0.9,en;q=0.8",
     "Cache-Control": "no-cache",
     "Pragma": "no-cache",
-    "Referer": "https://www.meti.go.jp/",
+    "Referer": "https://www.tohoku.meti.go.jp/",
 }
 
 response = requests.get(
@@ -34,12 +34,45 @@ response.raise_for_status()
 response.encoding = response.apparent_encoding
 soup = BeautifulSoup(response.text, "html.parser")
 
+date_pattern = re.compile(
+    r"20\d{2}年\d{2}月\d{2}日"
+)
+
 items = []
 seen = set()
+current_date = None
 
-for a in soup.find_all("a", href=True):
+for tag in soup.find_all(["p", "li", "dt", "dd", "a", "span", "div"]):
 
-    title = a.get_text(
+    text = tag.get_text(
+        " ",
+        strip=True
+    )
+
+    text = re.sub(
+        r"\s+",
+        " ",
+        text
+    ).strip()
+
+    date_match = date_pattern.fullmatch(text)
+
+    if date_match:
+        current_date = date_match.group()
+        continue
+
+    if current_date is None:
+        continue
+
+    if tag.name != "a":
+        continue
+
+    href = tag.get("href", "")
+
+    if not href or href.startswith("#"):
+        continue
+
+    title = tag.get_text(
         " ",
         strip=True
     )
@@ -53,9 +86,14 @@ for a in soup.find_all("a", href=True):
     if not title:
         continue
 
-    href = a.get("href", "")
-
-    if not href or href.startswith("#"):
+    if title in {
+        "ホーム",
+        "トピックス一覧",
+        "2026年度",
+        "2025年度",
+        "2024年度",
+        "2023年度",
+    }:
         continue
 
     url = urljoin(
@@ -66,25 +104,8 @@ for a in soup.find_all("a", href=True):
     if url.startswith("javascript:"):
         continue
 
-    # 東北経済産業局内の個別情報を基本対象にする
-    if "tohoku.meti.go.jp" not in url:
-        continue
-
-    # 固定ナビゲーション等を除外
-    if title in {
-        "ホーム",
-        "新着情報",
-        "一覧",
-        "詳しくはこちら",
-        "過去の新着一覧",
-        "年度別トピックス一覧へ",
-        "メールマガジン配信サービスへ",
-        "サイトマップ",
-        "お問い合わせ",
-    }:
-        continue
-
     key = (
+        current_date,
         title,
         url,
     )
@@ -94,12 +115,38 @@ for a in soup.find_all("a", href=True):
 
     seen.add(key)
 
+    m = re.match(
+        r"(\d{4})年(\d{2})月(\d{2})日",
+        current_date
+    )
+
+    if not m:
+        continue
+
+    year, month, day = map(
+        int,
+        m.groups()
+    )
+
+    date_key = (
+        year * 10000
+        + month * 100
+        + day
+    )
+
     items.append(
         (
+            date_key,
+            current_date,
             title,
             url,
         )
     )
+
+items.sort(
+    key=lambda x: x[0],
+    reverse=True
+)
 
 rss = Element(
     "rss",
@@ -114,7 +161,7 @@ channel = SubElement(
 SubElement(
     channel,
     "title"
-).text = "東北経済産業局 新着情報"
+).text = "東北経済産業局 トピックス"
 
 SubElement(
     channel,
@@ -124,9 +171,9 @@ SubElement(
 SubElement(
     channel,
     "description"
-).text = "東北経済産業局 新着情報"
+).text = "東北経済産業局 トピックス一覧"
 
-for title, url in items[:30]:
+for date_key, date_text, title, url in items[:30]:
 
     item = SubElement(
         channel,
@@ -143,7 +190,9 @@ for title, url in items[:30]:
         "link"
     ).text = url
 
-    unique_text = f"{title}|{url}"
+    unique_text = (
+        f"{date_text}|{title}|{url}"
+    )
 
     unique_id = hashlib.sha256(
         unique_text.encode("utf-8")
