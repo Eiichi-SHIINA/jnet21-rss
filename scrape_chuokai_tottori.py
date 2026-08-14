@@ -12,6 +12,19 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0"
 }
 
+response = requests.get(
+    SOURCE_URL,
+    headers=HEADERS,
+    timeout=60,
+)
+response.raise_for_status()
+response.encoding = response.apparent_encoding
+
+soup = BeautifulSoup(
+    response.text,
+    "html.parser"
+)
+
 date_pattern = re.compile(
     r"20\d{2}/\d{1,2}/\d{1,2}"
 )
@@ -19,107 +32,83 @@ date_pattern = re.compile(
 items = []
 seen = set()
 
-for page in range(1, 4):
+for text_node in soup.find_all(string=date_pattern):
 
-    if page == 1:
-        page_url = SOURCE_URL
-    else:
-        page_url = (
-            f"https://www.chuokai-tottori.or.jp/"
-            f"page/{page}/?post_type=news"
-        )
-
-    response = requests.get(
-        page_url,
-        headers=HEADERS,
-        timeout=60,
-    )
-    response.raise_for_status()
-    response.encoding = response.apparent_encoding
-
-    soup = BeautifulSoup(
-        response.text,
-        "html.parser"
+    match = date_pattern.search(
+        str(text_node)
     )
 
-    for text_node in soup.find_all(string=date_pattern):
+    if not match:
+        continue
 
-        match = date_pattern.search(
-            str(text_node)
-        )
+    date_text = match.group()
 
-        if not match:
-            continue
+    a = text_node.find_next(
+        "a",
+        href=True
+    )
 
-        date_text = match.group()
+    if a is None:
+        continue
 
-        # 日付の直後にある記事タイトルリンク
-        a = text_node.find_next(
-            "a",
-            href=True
-        )
+    title = a.get_text(
+        " ",
+        strip=True
+    )
 
-        if a is None:
-            continue
+    title = re.sub(
+        r"\s+",
+        " ",
+        title
+    ).strip()
 
-        title = a.get_text(
-            " ",
-            strip=True
-        )
+    if not title:
+        continue
 
-        title = re.sub(
-            r"\s+",
-            " ",
-            title
-        ).strip()
+    href = a.get("href", "")
 
-        if not title:
-            continue
+    if not href or href.startswith("#"):
+        continue
 
-        href = a.get("href", "")
+    url = urljoin(
+        SOURCE_URL,
+        href
+    )
 
-        if not href or href.startswith("#"):
-            continue
+    # 鳥取中央会の個別ニュースだけ
+    if "?news=" not in url:
+        continue
 
-        url = urljoin(
-            page_url,
-            href
-        )
+    key = (
+        date_text,
+        title,
+        url,
+    )
 
-        # 記事URLだけを対象
-        if "?news=" not in url:
-            continue
+    if key in seen:
+        continue
 
-        key = (
+    seen.add(key)
+
+    year, month, day = map(
+        int,
+        date_text.split("/")
+    )
+
+    date_key = (
+        year * 10000
+        + month * 100
+        + day
+    )
+
+    items.append(
+        (
+            date_key,
             date_text,
             title,
             url,
         )
-
-        if key in seen:
-            continue
-
-        seen.add(key)
-
-        year, month, day = map(
-            int,
-            date_text.split("/")
-        )
-
-        date_key = (
-            year * 10000
-            + month * 100
-            + day
-        )
-
-        items.append(
-            (
-                date_key,
-                date_text,
-                title,
-                url,
-            )
-        )
+    )
 
 items.sort(
     key=lambda x: x[0],
