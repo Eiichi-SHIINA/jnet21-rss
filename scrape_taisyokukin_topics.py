@@ -22,80 +22,122 @@ response.raise_for_status()
 response.encoding = response.apparent_encoding
 soup = BeautifulSoup(response.text, "html.parser")
 
-date_pattern = re.compile(
-    r"20\d{2}\.\d{1,2}\.\d{1,2}"
-)
+date_pattern = re.compile(r"^20\d{2}\.\d{1,2}\.\d{1,2}$")
 
 items = []
 seen = set()
 
-for text_node in soup.find_all(string=date_pattern):
+for text_node in soup.find_all(string=True):
 
-    text = str(text_node)
-    match = date_pattern.search(text)
-
-    if not match:
-        continue
-
-    date_text = match.group()
-
-    # 日付の近くにある記事ブロックを探す
-    parent = text_node.parent
-
-    # まず同じ親要素内のリンク
-    a = parent.find(
-        "a",
-        href=True
+    date_text = re.sub(
+        r"\s+",
+        "",
+        str(text_node)
     )
 
-    # なければ直後のリンク
-    if a is None:
-        a = parent.find_next(
-            "a",
-            href=True
-        )
-
-    if a is None:
+    if not date_pattern.match(date_text):
         continue
 
-    title = a.get_text(
+    date_tag = text_node.parent
+
+    # 日付の次の兄弟要素を、その日の新着ブロックとして扱う
+    block = date_tag.find_next_sibling()
+
+    if block is None:
+        continue
+
+    block_text = block.get_text(
         " ",
         strip=True
     )
 
-    title = re.sub(
+    block_text = re.sub(
         r"\s+",
         " ",
-        title
+        block_text
     ).strip()
+
+    if not block_text:
+        continue
+
+    # 最初に〖 〗で囲まれた見出しがあればタイトルとして使用
+    heading_match = re.search(
+        r"〖(.+?)〗",
+        block_text
+    )
+
+    if heading_match:
+        title = heading_match.group(1).strip()
+
+    else:
+        # リンク付きの通常記事
+        a = block.find("a", href=True)
+
+        if a is not None:
+            title = a.get_text(
+                " ",
+                strip=True
+            )
+            title = re.sub(
+                r"\s+",
+                " ",
+                title
+            ).strip()
+
+        else:
+            # リンクのないメンテナンス等のお知らせ
+            title = block_text
 
     if not title:
         continue
 
-    href = a.get("href", "")
-
-    if not href or href.startswith("#"):
-        continue
-
-    url = urljoin(
-        SOURCE_URL,
-        href
-    )
-
-    # 一覧ページ自身や明らかなナビゲーションを除外
-    if url.rstrip("/") == SOURCE_URL.rstrip("/"):
-        continue
-
+    # タイトルが部署名だけの場合は、ブロック内のリンク文字を使う
     if title in {
-        "ホーム",
-        "トップページ",
-        "一覧",
-        "新着情報一覧",
+        "資産運用部",
+        "財形部",
     }:
-        continue
+        a = block.find("a", href=True)
 
+        if a is not None:
+            title = a.get_text(
+                " ",
+                strip=True
+            )
+            title = re.sub(
+                r"\s+",
+                " ",
+                title
+            ).strip()
+
+    # リンクはブロック内の最初の有効リンク
+    a = block.find("a", href=True)
+
+    if a is not None:
+        href = a.get("href", "")
+
+        if href and not href.startswith("#"):
+            url = urljoin(
+                SOURCE_URL,
+                href
+            )
+        else:
+            url = SOURCE_URL
+    else:
+        # リンクなしのお知らせは新着一覧へ
+        url = SOURCE_URL
+
+    # 「こちら」などしか取れなかった場合はブロックの見出しを優先
+    if title in {
+        "こちら",
+        "ホームページ",
+    }:
+        if heading_match:
+            title = heading_match.group(1).strip()
+        else:
+            title = block_text
+
+    # 同一タイトル＋同一URLは1件だけ
     key = (
-        date_text,
         title,
         url,
     )
