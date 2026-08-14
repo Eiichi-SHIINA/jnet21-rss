@@ -1,11 +1,14 @@
 import re
 import hashlib
 import requests
+from datetime import datetime
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 from xml.etree.ElementTree import Element, SubElement, ElementTree
 
-SOURCE_URL = "https://www.shokochukin.co.jp/news/"
+BASE_URL = "https://www.shokochukin.co.jp/news/"
+CURRENT_YEAR = datetime.now().year
+SOURCE_URL = f"{BASE_URL}{CURRENT_YEAR}/"
 OUTPUT_FILE = "shokochukin-news.xml"
 
 HEADERS = {
@@ -29,36 +32,22 @@ date_pattern = re.compile(
 items = []
 seen = set()
 
-for text_node in soup.find_all(string=date_pattern):
+for a in soup.find_all("a", href=True):
+    text = a.get_text(" ", strip=True)
+    text = re.sub(r"\s+", " ", text).strip()
 
-    match = date_pattern.search(
-        str(text_node)
-    )
+    match = date_pattern.search(text)
 
     if not match:
         continue
 
     date_text = match.group()
 
-    # 日付の直後にあるリンクを取得
-    a = text_node.find_next(
-        "a",
-        href=True
-    )
+    title = text.replace(date_text, "", 1).strip()
 
-    if a is None:
-        continue
-
-    title = a.get_text(
-        " ",
-        strip=True
-    )
-
-    title = re.sub(
-        r"\s+",
-        " ",
-        title
-    ).strip()
+    # PDF容量などの表記はそのままでもよいが、
+    # 先頭の余分な空白だけ整理
+    title = re.sub(r"\s+", " ", title).strip()
 
     if not title:
         continue
@@ -72,13 +61,6 @@ for text_node in soup.find_all(string=date_pattern):
         SOURCE_URL,
         href
     )
-
-    # 年別アーカイブやナビゲーションを除外
-    if re.search(
-        r"/news/\d{4}/?$",
-        url
-    ):
-        continue
 
     key = (
         title,
