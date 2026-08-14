@@ -2,7 +2,7 @@ import re
 import hashlib
 import requests
 from bs4 import BeautifulSoup
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 from xml.etree.ElementTree import Element, SubElement, ElementTree
 
 SOURCE_URL = "https://www.kiis.or.jp/seminar/"
@@ -26,8 +26,17 @@ items = []
 seen = set()
 
 for a in soup.find_all("a", href=True):
-    title = a.get_text(" ", strip=True)
-    title = re.sub(r"\s+", " ", title).strip()
+
+    title = a.get_text(
+        " ",
+        strip=True
+    )
+
+    title = re.sub(
+        r"\s+",
+        " ",
+        title
+    ).strip()
 
     if not title:
         continue
@@ -42,26 +51,53 @@ for a in soup.find_all("a", href=True):
         href
     )
 
-    # 一覧ページ自身やナビゲーションを除外
-    if url.rstrip("/") == SOURCE_URL.rstrip("/"):
-        continue
-
-    if title in {
-        "ホーム",
-        "トップページ",
-        "セミナー・イベント情報",
-        "お問い合わせ",
-        "アクセス",
-        "プライバシーポリシー",
-    }:
-        continue
-
-    # KIISのセミナー詳細・申込に関係するリンクを優先
-    if not (
-        "/form/" in url
-        or "secure.kiis.or.jp" in url
-        or "/seminar/" in url
+    # ページネーション除外
+    if re.search(
+        r"/seminar/\?pages=\d+",
+        url
     ):
+        continue
+
+    # まず申込フォームは対象
+    is_form = bool(
+        re.search(
+            r"https://www\.kiis\.or\.jp/form/\?id=\d+",
+            url
+        )
+    )
+
+    # secure.kiis.or.jp は、一覧の記事らしい文章だけ対象
+    is_secure_event = (
+        urlparse(url).netloc == "secure.kiis.or.jp"
+        and (
+            "開催します" in title
+            or "研修" in title
+            or "セミナー" in title
+        )
+    )
+
+    if not (
+        is_form
+        or is_secure_event
+    ):
+        continue
+
+    # 共通サービス・ナビゲーション除外
+    if title in {
+        "関西CIOカンファレンス",
+        "ITシンポジウム インフォテック",
+        "e-Kansaiレポート",
+        "ビジネス・イノベーション・セミナー",
+        "サイバーセキュリティ研究会",
+        "プライバシーマーク審査員研修",
+        "未来創造サロン",
+        "先端技術・ビジネス動向研究会（ABIT-Forum）",
+        "施設予約",
+        "セキュアサポートサービス",
+        "Pマーク審査",
+        "Pマーク 取得申請",
+        "Pマーク取得申請",
+    }:
         continue
 
     key = (
