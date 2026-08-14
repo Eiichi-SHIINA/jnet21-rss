@@ -100,7 +100,6 @@ for text_node in start_text.find_all_next(string=date_pattern):
         continue
 
     key = (
-        date_text,
         title,
         url,
     )
