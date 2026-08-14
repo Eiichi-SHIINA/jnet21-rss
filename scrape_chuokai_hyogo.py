@@ -32,55 +32,36 @@ SubElement(channel, "description").text = "兵庫県中小企業団体中央会 
 items = []
 seen = set()
 
-for a in soup.find_all("a", href=True):
+# 一覧ページの記事見出しを探す
+for heading in soup.find_all(["h2", "h3", "h4"]):
+
+    a = heading.find("a", href=True)
+
+    if a is None:
+        continue
+
     title = a.get_text(" ", strip=True)
     title = re.sub(r"\s+", " ", title).strip()
 
     if not title:
         continue
 
-    # 一覧の「続きを読む」などは除外
-    if title in {
-        "続きを読む",
-        "詳しく見る",
-        "MORE",
-        "more",
-    }:
-        continue
-
     href = a.get("href", "")
+
     if not href or href.startswith("#"):
         continue
 
     url = urljoin(SOURCE_URL, href)
 
-    # 兵庫県中央会サイト内の記事だけを対象
+    # 記事は chuokai.com 内
     if not url.startswith("https://www.chuokai.com/"):
         continue
 
-    # 一覧・カテゴリ・固定ページ等を除外
+    # 一覧ページやページ送りを除外
     if url.rstrip("/") == SOURCE_URL.rstrip("/"):
         continue
 
-    if any(
-        part in url
-        for part in [
-            "/category/",
-            "/tag/",
-            "/author/",
-            "/page/",
-            "/wp-content/",
-        ]
-    ):
-        continue
-
-    # 明らかなナビゲーションを除外
-    if title in {
-        "ホーム",
-        "お知らせ",
-        "お問い合わせ",
-        "中央会概要",
-    }:
+    if "/info/page/" in url:
         continue
 
     key = (title, url)
@@ -98,12 +79,14 @@ for a in soup.find_all("a", href=True):
     )
 
 for title, url in items[:30]:
+
     item = SubElement(channel, "item")
 
     SubElement(item, "title").text = title
     SubElement(item, "link").text = url
 
     unique_text = f"{title}|{url}"
+
     unique_id = hashlib.sha256(
         unique_text.encode("utf-8")
     ).hexdigest()
