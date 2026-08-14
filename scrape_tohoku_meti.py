@@ -77,16 +77,11 @@ for a in soup.find_all("a", href=True):
         "一覧",
         "詳しくはこちら",
         "過去の新着一覧",
+        "年度別トピックス一覧へ",
+        "メールマガジン配信サービスへ",
         "サイトマップ",
         "お問い合わせ",
     }:
-        continue
-
-    # 個別記事らしいURLだけを対象
-    if not re.search(
-        r"/(?:topics|kobo|press|oshirase|news|koshin)/.*\.(?:html?|htm)$",
-        url
-    ):
         continue
 
     key = (
