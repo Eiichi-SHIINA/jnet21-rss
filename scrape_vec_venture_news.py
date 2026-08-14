@@ -62,10 +62,7 @@ for page in range(1, 6):
             continue
 
         # 「続きを読む」リンク等は除外
-        if title in {
-            "続きを読む",
-            "詳細を見る",
-        }:
+        if "続きを読む" in title or "詳細を見る" in title:
             continue
 
         key = (
