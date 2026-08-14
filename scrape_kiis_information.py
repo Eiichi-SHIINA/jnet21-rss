@@ -73,6 +73,9 @@ for a in soup.find_all("a", href=True):
         href
     )
 
+    if url.startswith("javascript:"):
+        continue
+
     key = (
         date_text,
         title,
