@@ -82,6 +82,13 @@ for a in start_text.find_all_next("a", href=True):
     if not title:
         continue
 
+    # 固定ページを除外
+    if title in {
+        "役員名簿",
+        "事務局組織図",
+    }:
+        continue
+
     key = (
         title,
         url,
