@@ -1,8 +1,6 @@
 name: Update Chuokai Fukuoka RSS
 
 on:
-  schedule:
-    - cron: "55 */6 * * *"
   workflow_dispatch:
 
 permissions:
