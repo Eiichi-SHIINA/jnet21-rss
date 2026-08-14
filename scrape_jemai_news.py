@@ -2,7 +2,7 @@ import re
 import hashlib
 import requests
 from bs4 import BeautifulSoup
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 from xml.etree.ElementTree import Element, SubElement, ElementTree
 
 SOURCE_URL = "https://www.jemai.or.jp/"
@@ -23,32 +23,19 @@ response.encoding = response.apparent_encoding
 soup = BeautifulSoup(response.text, "html.parser")
 
 date_pattern = re.compile(
-    r"20\d{2}年\d{2}月\d{2}日"
+    r"20\d{2}年\d{1,2}月\d{1,2}日"
 )
+
+exclude_words = [
+    "環境省からのお知らせ",
+    "関係団体からのお知らせ",
+    "会員企業からのお知らせ",
+]
 
 items = []
 seen = set()
 
-for text_node in soup.find_all(string=date_pattern):
-
-    match = date_pattern.search(
-        str(text_node)
-    )
-
-    if not match:
-        continue
-
-    date_text = match.group()
-
-    parent = text_node.parent
-
-    a = parent.find_next(
-        "a",
-        href=True
-    )
-
-    if a is None:
-        continue
+for a in soup.find_all("a", href=True):
 
     title = a.get_text(
         " ",
@@ -64,24 +51,6 @@ for text_node in soup.find_all(string=date_pattern):
     if not title:
         continue
 
-    # 他団体・会員企業等からの案内は除外
-    exclude_words = [
-        "会員企業からのお知らせ",
-        "関係団体からのお知らせ",
-        "環境省からのお知らせ",
-    ]
-
-    parent_text = parent.parent.get_text(
-        " ",
-        strip=True
-    ) if parent.parent else ""
-
-    if any(
-        word in parent_text
-        for word in exclude_words
-    ):
-        continue
-
     href = a.get("href", "")
 
     if not href or href.startswith("#"):
@@ -95,8 +64,64 @@ for text_node in soup.find_all(string=date_pattern):
     if url.startswith("javascript:"):
         continue
 
-    # JEMAI内部ページを基本対象とする
-    if "jemai.or.jp" not in url:
+    # JEMAI自身のページだけを基本対象にする
+    parsed = urlparse(url)
+
+    if parsed.netloc not in {
+        "www.jemai.or.jp",
+        "jemai.or.jp",
+        "www.e-jemai.jp",
+        "e-jemai.jp",
+    }:
+        continue
+
+    # リンク周辺のブロックを取得
+    block = a
+
+    for _ in range(4):
+        if block.parent is None:
+            break
+
+        block = block.parent
+
+        block_text = block.get_text(
+            " ",
+            strip=True
+        )
+
+        block_text = re.sub(
+            r"\s+",
+            " ",
+            block_text
+        ).strip()
+
+        date_match = date_pattern.search(
+            block_text
+        )
+
+        if date_match:
+            break
+
+    if not date_match:
+        continue
+
+    # 他団体由来の案内を除外
+    if any(
+        word in block_text
+        for word in exclude_words
+    ):
+        continue
+
+    date_text = date_match.group()
+
+    # ナビゲーションや固定メニューを除外
+    if title in {
+        "過去の情報",
+        "過去の情報>>",
+        "詳細はこちら",
+        "こちら",
+        "トップページ",
+    }:
         continue
 
     key = (
@@ -111,7 +136,7 @@ for text_node in soup.find_all(string=date_pattern):
     seen.add(key)
 
     m = re.match(
-        r"(\d{4})年(\d{2})月(\d{2})日",
+        r"(\d{4})年(\d{1,2})月(\d{1,2})日",
         date_text
     )
 
