@@ -5,7 +5,7 @@ from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 from xml.etree.ElementTree import Element, SubElement, ElementTree
 
-SOURCE_URL = "https://yorozu-okayama.go.jp/news/"
+SOURCE_URL = "https://yorozu-okayama.go.jp/category/news/"
 OUTPUT_FILE = "yorozu-okayama-news.xml"
 
 HEADERS = {
