@@ -4,10 +4,17 @@ import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 from xml.etree.ElementTree import Element, SubElement, ElementTree
+from datetime import datetime
 
 SOURCE_URL = "https://www.tec-lab.pref.gunma.jp/seminar-list/"
 BASE_URL = "https://www.tec-lab.pref.gunma.jp/"
 OUTPUT_FILE = "gunma-tec-seminar.xml"
+
+CURRENT_YEAR = datetime.now().year
+REIWA_YEAR = CURRENT_YEAR - 2018
+REIWA_YEAR_FULL = str(REIWA_YEAR).translate(
+    str.maketrans("0123456789", "０１２３４５６７８９")
+)
 
 HEADERS = {
     "User-Agent": (
@@ -42,6 +49,14 @@ for a in soup.find_all("a", href=True):
     title = re.sub(r"\s+", " ", title).strip()
 
     if not title:
+        continue
+
+    # 今年の研修・セミナーだけを対象
+    if (
+        str(CURRENT_YEAR) not in title
+        and f"令和{REIWA_YEAR}年" not in title
+        and f"令和{REIWA_YEAR_FULL}年" not in title
+    ):
         continue
 
     href = a.get("href", "").strip()
