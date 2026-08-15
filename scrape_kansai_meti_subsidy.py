@@ -20,6 +20,8 @@ HEADERS = {
         "image/avif,image/webp,image/apng,*/*;q=0.8"
     ),
     "Accept-Language": "ja,en-US;q=0.9,en;q=0.8",
+    "Cache-Control": "no-cache",
+    "Pragma": "no-cache",
 }
 
 response = requests.get(
@@ -36,12 +38,25 @@ items = []
 seen = set()
 
 EXCLUDE_TITLES = {
-    "ホーム",
+    "本文へ",
+    "局のご案内",
+    "電話番号案内",
+    "相談窓口",
     "トップページ",
+    "申請・届出",
     "公募情報",
-    "過去の公募情報",
+    "施策のご案内",
+    "イベント",
+    "入札・調達",
+    "統計・経済動向",
+    "ウェブサイト利用規約",
+    "法的事項",
     "サイトマップ",
-    "お問い合わせ",
+    "プライバシーポリシー",
+    "ウェブアクセシビリティ方針",
+    "メンテナンス情報",
+    "ページ上部へ戻る",
+    "過去の公募情報",
 }
 
 for a in soup.find_all("a", href=True):
@@ -67,9 +82,7 @@ for a in soup.find_all("a", href=True):
 
     url = urljoin(SOURCE_URL, href)
 
-    if not url.startswith(BASE_URL):
-        continue
-
+    # 添付ファイルは除外
     if url.lower().endswith((
         ".pdf",
         ".doc",
@@ -81,19 +94,16 @@ for a in soup.find_all("a", href=True):
     )):
         continue
 
-    # 公募・補助金等の案件に絞る
-    if not any(
-        keyword in title
-        for keyword in [
-            "公募",
-            "募集",
-            "補助金",
-            "補助事業",
-            "委託",
-            "企画競争",
-            "支援事業",
-        ]
-    ):
+    # ページ自身は除外
+    if url.rstrip("/") == SOURCE_URL.rstrip("/"):
+        continue
+
+    # 過去公募一覧へのリンクは除外
+    if "koubo20" in url.lower():
+        continue
+
+    # 短いナビゲーション文言は除外
+    if len(title) < 8:
         continue
 
     key = (title, url)
@@ -107,10 +117,10 @@ for a in soup.find_all("a", href=True):
 rss = Element("rss", version="2.0")
 channel = SubElement(rss, "channel")
 
-SubElement(channel, "title").text = "近畿経済産業局 公募・補助金情報"
+SubElement(channel, "title").text = "近畿経済産業局 公募情報"
 SubElement(channel, "link").text = SOURCE_URL
 SubElement(channel, "description").text = (
-    "近畿経済産業局の公募・補助金・委託等の情報"
+    "近畿経済産業局の公募予告及び公募中の情報"
 )
 
 for title, url in items[:30]:
@@ -120,6 +130,7 @@ for title, url in items[:30]:
     SubElement(item, "link").text = url
 
     unique_text = f"{title}|{url}"
+
     unique_id = hashlib.sha256(
         unique_text.encode("utf-8")
     ).hexdigest()
