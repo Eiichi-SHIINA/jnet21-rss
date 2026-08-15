@@ -15,6 +15,10 @@ REIWA_YEAR = CURRENT_YEAR - 2018
 REIWA_YEAR_FULL = str(REIWA_YEAR).translate(
     str.maketrans("0123456789", "０１２３４５６７８９")
 )
+PREVIOUS_REIWA_YEAR = REIWA_YEAR - 1
+PREVIOUS_REIWA_YEAR_FULL = str(PREVIOUS_REIWA_YEAR).translate(
+    str.maketrans("0123456789", "０１２３４５６７８９")
+)
 
 HEADERS = {
     "User-Agent": (
@@ -56,6 +60,13 @@ for a in soup.find_all("a", href=True):
         str(CURRENT_YEAR) not in title
         and f"令和{REIWA_YEAR}年" not in title
         and f"令和{REIWA_YEAR_FULL}年" not in title
+    ):
+        continue
+
+    # 前年度の年度表記がある過去講座は除外
+    if (
+        f"令和{PREVIOUS_REIWA_YEAR}年度" in title
+        or f"令和{PREVIOUS_REIWA_YEAR_FULL}年度" in title
     ):
         continue
 
