@@ -24,15 +24,15 @@ HEADERS = {
     "Referer": "https://www.meti.go.jp/",
 }
 
-# イベント情報が掲載される主な部署ページ
 SOURCE_URLS = [
     "https://www.tohoku.meti.go.jp/s_joho/index_joho.html",
     "https://www.tohoku.meti.go.jp/s_cyusyo/index_cyusyo.html",
-    "https://www.tohoku.meti.go.jp/s_shinki/index_shinki.html",
     "https://www.tohoku.meti.go.jp/s_kokusai/index_kokusai.html",
-    "https://www.tohoku.meti.go.jp/chiiki_supporter/index.html",
-    "https://www.tohoku.meti.go.jp/kikaku/chihososei/index.html",
-    "https://www.tohoku.meti.go.jp/s_shigen_ene/syo_energy/index.html",
+    "https://www.tohoku.meti.go.jp/s_sangi_jinza/index.html",
+    "https://www.tohoku.meti.go.jp/s_shogyo/index.html",
+    "https://www.tohoku.meti.go.jp/s_shinki/index_venc.html",
+    "https://www.tohoku.meti.go.jp/s_shigen_ene/syo_energy.html",
+    "https://www.tohoku.meti.go.jp/kikaku/index_meetup.html",
 ]
 
 KEYWORDS = [
@@ -47,8 +47,17 @@ KEYWORDS = [
     "交流会",
     "勉強会",
     "ワークショップ",
+    "成果発表会",
     "Meetup",
+    "MEETUP",
     "ミートアップ",
+]
+
+EXCLUDE_KEYWORDS = [
+    "採用",
+    "官庁訪問",
+    "職員",
+    "国家公務員",
 ]
 
 items = []
@@ -72,6 +81,7 @@ for source_url in SOURCE_URLS:
         continue
 
     response.encoding = response.apparent_encoding
+
     soup = BeautifulSoup(
         response.text,
         "html.parser"
@@ -98,6 +108,12 @@ for source_url in SOURCE_URLS:
         ):
             continue
 
+        if any(
+            keyword in title
+            for keyword in EXCLUDE_KEYWORDS
+        ):
+            continue
+
         href = a.get(
             "href",
             ""
@@ -120,16 +136,15 @@ for source_url in SOURCE_URLS:
         if not url.startswith(BASE_URL):
             continue
 
-        # PDFそのものは除外
         if url.lower().endswith(".pdf"):
             continue
 
-        # 固定メニュー等を除外
         if title in {
             "セミナー",
             "イベント",
-            "研修",
             "説明会",
+            "相談会",
+            "研修",
         }:
             continue
 
@@ -175,7 +190,7 @@ SubElement(
     "description"
 ).text = (
     "東北経済産業局のセミナー・説明会・相談会・"
-    "イベント等の情報"
+    "フォーラム・交流会等の情報"
 )
 
 for title, url in items[:30]:
@@ -194,9 +209,7 @@ for title, url in items[:30]:
         "link"
     ).text = url
 
-    unique_text = (
-        f"{title}|{url}"
-    )
+    unique_text = f"{title}|{url}"
 
     unique_id = hashlib.sha256(
         unique_text.encode("utf-8")
