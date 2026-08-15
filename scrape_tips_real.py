@@ -56,6 +56,9 @@ for a in soup.find_all("a", href=True):
     if title in EXCLUDE_TITLES:
         continue
 
+    if not re.match(r"^\d{4}/\d{2}/\d{2}\s", title):
+        continue
+    
     href = a.get("href", "").strip()
 
     if not href:
