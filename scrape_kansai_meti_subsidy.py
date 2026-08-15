@@ -60,7 +60,6 @@ EXCLUDE_TITLES = {
 
     "PDFファイルをご覧いただくためにはAdobe Readerが必要です。",
     "お問い合せ、ご意見はこちら",
-    "10月9日 更新しました",
 }
 
 for a in soup.find_all("a", href=True):
@@ -71,6 +70,9 @@ for a in soup.find_all("a", href=True):
         continue
 
     if title in EXCLUDE_TITLES:
+        continue
+
+    if "更新しました" in title:
         continue
 
     href = a.get("href", "").strip()
