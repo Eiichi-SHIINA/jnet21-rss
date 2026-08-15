@@ -24,13 +24,25 @@ HEADERS = {
     "Pragma": "no-cache",
 }
 
+KEYWORDS = [
+    "公募",
+    "募集",
+    "参加企業",
+    "支援",
+    "受付開始",
+    "申込受付",
+    "補助金",
+    "補助事業",
+]
+
 EXCLUDE_KEYWORDS = [
-    "入札情報",
-    "メールマガジン",
+    "入札",
+    "採用",
     "職員",
     "インターンシップ",
-    "復旧しました",
+    "利用受付停止",
     "予約停止",
+    "復旧",
 ]
 
 response = requests.get(
@@ -53,6 +65,10 @@ for a in soup.find_all("a", href=True):
     if not title:
         continue
 
+    # 公募・募集・支援等だけ残す
+    if not any(keyword in title for keyword in KEYWORDS):
+        continue
+
     if any(keyword in title for keyword in EXCLUDE_KEYWORDS):
         continue
 
@@ -72,7 +88,8 @@ for a in soup.find_all("a", href=True):
     if not url.startswith(BASE_URL):
         continue
 
-    if url.rstrip("/") == SOURCE_URL.rstrip("/"):
+    # セミナーは別RSSで監視するため除外
+    if "/seminar/" in url:
         continue
 
     if url.lower().endswith((
@@ -86,17 +103,11 @@ for a in soup.find_all("a", href=True):
     )):
         continue
 
-    # 新着記事らしいURLに限定
-    if not any(
-        path in url
-        for path in [
-            "/seminar/",
-            "/info/",
-            "/business/",
-            "/research/",
-        ]
-    ):
-        continue
+    # 表示上の余計な文言を削除
+    title = title.replace(
+        "open_in_new",
+        ""
+    ).strip()
 
     key = (title, url)
 
@@ -112,7 +123,7 @@ channel = SubElement(rss, "channel")
 SubElement(
     channel,
     "title"
-).text = "群馬県立産業技術センター 新着情報"
+).text = "群馬県立産業技術センター 公募・募集・支援情報"
 
 SubElement(
     channel,
@@ -123,7 +134,7 @@ SubElement(
     channel,
     "description"
 ).text = (
-    "群馬県立産業技術センターの研修・公募・支援等の新着情報"
+    "群馬県立産業技術センターの公募・募集・支援等の情報"
 )
 
 for title, url in items[:30]:
