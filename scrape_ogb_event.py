@@ -70,6 +70,9 @@ for a in soup.find_all("a", href=True):
     if not title:
         continue
 
+    if title == "イベント情報":
+        continue
+    
     if not any(keyword in title for keyword in KEYWORDS):
         continue
 
