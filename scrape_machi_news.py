@@ -48,9 +48,23 @@ EXCLUDE_TITLES = {
     "ページの先頭へ",
 }
 
+EXCLUDE_PATHS = [
+    "/about/",
+    "/support/",
+    "/outline/index.html",
+    "/machi/index.html",
+    "/machi/mvlist.html",
+    "/outline/past/index.html",
+]
+
 for a in soup.find_all("a", href=True):
     title = a.get_text(" ", strip=True)
     title = re.sub(r"\s+", " ", title).strip()
+
+    title = title.replace(
+        "別ウィンドウで開きます",
+        ""
+    ).strip()
 
     if not title:
         continue
@@ -71,6 +85,14 @@ for a in soup.find_all("a", href=True):
 
     url = urljoin(SOURCE_URL, href)
 
+    # 固定メニュー・常設ページを除外
+    if (
+        url.startswith(BASE_URL)
+        and any(path in url for path in EXCLUDE_PATHS)
+    ):
+        continue
+
+    # 添付ファイルは除外
     if url.lower().endswith((
         ".pdf",
         ".doc",
@@ -96,13 +118,20 @@ for a in soup.find_all("a", href=True):
 rss = Element("rss", version="2.0")
 channel = SubElement(rss, "channel")
 
-SubElement(channel, "title").text = (
-    "中心市街地活性化協議会支援センター 新着情報"
-)
+SubElement(
+    channel,
+    "title"
+).text = "中心市街地活性化協議会支援センター 新着情報"
 
-SubElement(channel, "link").text = SOURCE_URL
+SubElement(
+    channel,
+    "link"
+).text = SOURCE_URL
 
-SubElement(channel, "description").text = (
+SubElement(
+    channel,
+    "description"
+).text = (
     "中心市街地活性化協議会支援センター（まちかつ）の新着情報"
 )
 
