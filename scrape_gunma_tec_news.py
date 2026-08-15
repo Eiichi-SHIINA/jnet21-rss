@@ -4,10 +4,12 @@ import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 from xml.etree.ElementTree import Element, SubElement, ElementTree
+from datetime import datetime
 
 SOURCE_URL = "https://www.tec-lab.pref.gunma.jp/"
 BASE_URL = "https://www.tec-lab.pref.gunma.jp/"
 OUTPUT_FILE = "gunma-tec-news.xml"
+CURRENT_YEAR = str(datetime.now().year)
 
 HEADERS = {
     "User-Agent": (
@@ -63,6 +65,10 @@ for a in soup.find_all("a", href=True):
     title = re.sub(r"\s+", " ", title).strip()
 
     if not title:
+        continue
+
+    # 今年の新着だけを対象
+    if CURRENT_YEAR not in title:
         continue
 
     # 公募・募集・支援等だけ残す
