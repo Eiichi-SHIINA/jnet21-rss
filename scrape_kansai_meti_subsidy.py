@@ -57,6 +57,10 @@ EXCLUDE_TITLES = {
     "メンテナンス情報",
     "ページ上部へ戻る",
     "過去の公募情報",
+
+    "PDFファイルをご覧いただくためにはAdobe Readerが必要です。",
+    "お問い合せ、ご意見はこちら",
+    "10月9日 更新しました",
 }
 
 for a in soup.find_all("a", href=True):
