@@ -6,7 +6,6 @@ from urllib.parse import urljoin
 from xml.etree.ElementTree import Element, SubElement, ElementTree
 
 BASE_URL = "https://www.tohoku.meti.go.jp/"
-SOURCE_URL = "https://www.tohoku.meti.go.jp/"
 OUTPUT_FILE = "tohoku-meti-event.xml"
 
 HEADERS = {
@@ -25,6 +24,17 @@ HEADERS = {
     "Referer": "https://www.meti.go.jp/",
 }
 
+# イベント情報が掲載される主な部署ページ
+SOURCE_URLS = [
+    "https://www.tohoku.meti.go.jp/s_joho/index_joho.html",
+    "https://www.tohoku.meti.go.jp/s_cyusyo/index_cyusyo.html",
+    "https://www.tohoku.meti.go.jp/s_shinki/index_shinki.html",
+    "https://www.tohoku.meti.go.jp/s_kokusai/index_kokusai.html",
+    "https://www.tohoku.meti.go.jp/chiiki_supporter/index.html",
+    "https://www.tohoku.meti.go.jp/kikaku/chihososei/index.html",
+    "https://www.tohoku.meti.go.jp/s_shigen_ene/syo_energy/index.html",
+]
+
 KEYWORDS = [
     "セミナー",
     "説明会",
@@ -37,76 +47,165 @@ KEYWORDS = [
     "交流会",
     "勉強会",
     "ワークショップ",
+    "Meetup",
+    "ミートアップ",
 ]
-
-response = requests.get(
-    SOURCE_URL,
-    headers=HEADERS,
-    timeout=60,
-)
-response.raise_for_status()
-
-response.encoding = response.apparent_encoding
-soup = BeautifulSoup(response.text, "html.parser")
 
 items = []
 seen = set()
 
-for a in soup.find_all("a", href=True):
-    title = a.get_text(" ", strip=True)
-    title = re.sub(r"\s+", " ", title).strip()
+for source_url in SOURCE_URLS:
+    try:
+        response = requests.get(
+            source_url,
+            headers=HEADERS,
+            timeout=60,
+        )
+        response.raise_for_status()
 
-    if not title:
+    except requests.RequestException as e:
+        print(
+            "取得失敗:",
+            source_url,
+            e,
+        )
         continue
 
-    if not any(keyword in title for keyword in KEYWORDS):
-        continue
+    response.encoding = response.apparent_encoding
+    soup = BeautifulSoup(
+        response.text,
+        "html.parser"
+    )
 
-    href = a.get("href", "").strip()
+    for a in soup.find_all("a", href=True):
+        title = a.get_text(
+            " ",
+            strip=True
+        )
 
-    if not href:
-        continue
+        title = re.sub(
+            r"\s+",
+            " ",
+            title
+        ).strip()
 
-    if href.startswith("#"):
-        continue
+        if not title:
+            continue
 
-    if href.startswith("javascript:"):
-        continue
+        if not any(
+            keyword.lower() in title.lower()
+            for keyword in KEYWORDS
+        ):
+            continue
 
-    url = urljoin(BASE_URL, href)
+        href = a.get(
+            "href",
+            ""
+        ).strip()
 
-    if not url.startswith(BASE_URL):
-        continue
+        if not href:
+            continue
 
-    key = (title, url)
+        if href.startswith("#"):
+            continue
 
-    if key in seen:
-        continue
+        if href.startswith("javascript:"):
+            continue
 
-    seen.add(key)
-    items.append((title, url))
+        url = urljoin(
+            source_url,
+            href
+        )
 
-rss = Element("rss", version="2.0")
-channel = SubElement(rss, "channel")
+        if not url.startswith(BASE_URL):
+            continue
 
-SubElement(channel, "title").text = "東北経済産業局 イベント・セミナー情報"
-SubElement(channel, "link").text = SOURCE_URL
-SubElement(channel, "description").text = (
-    "東北経済産業局のセミナー・説明会・相談会・イベント等の情報"
+        # PDFそのものは除外
+        if url.lower().endswith(".pdf"):
+            continue
+
+        # 固定メニュー等を除外
+        if title in {
+            "セミナー",
+            "イベント",
+            "研修",
+            "説明会",
+        }:
+            continue
+
+        key = (
+            title,
+            url,
+        )
+
+        if key in seen:
+            continue
+
+        seen.add(key)
+
+        items.append(
+            (
+                title,
+                url,
+            )
+        )
+
+rss = Element(
+    "rss",
+    version="2.0"
+)
+
+channel = SubElement(
+    rss,
+    "channel"
+)
+
+SubElement(
+    channel,
+    "title"
+).text = "東北経済産業局 イベント・セミナー情報"
+
+SubElement(
+    channel,
+    "link"
+).text = BASE_URL
+
+SubElement(
+    channel,
+    "description"
+).text = (
+    "東北経済産業局のセミナー・説明会・相談会・"
+    "イベント等の情報"
 )
 
 for title, url in items[:30]:
-    item = SubElement(channel, "item")
+    item = SubElement(
+        channel,
+        "item"
+    )
 
-    SubElement(item, "title").text = title
-    SubElement(item, "link").text = url
+    SubElement(
+        item,
+        "title"
+    ).text = title
 
-    unique_text = f"{title}|{url}"
+    SubElement(
+        item,
+        "link"
+    ).text = url
+
+    unique_text = (
+        f"{title}|{url}"
+    )
+
     unique_id = hashlib.sha256(
         unique_text.encode("utf-8")
     ).hexdigest()
 
-    SubElement(item, "guid").text = (
+    SubElement(
+        item,
+        "guid"
+    ).text = (
         f"urn:tohoku-meti-event:{unique_id}"
     )
 
