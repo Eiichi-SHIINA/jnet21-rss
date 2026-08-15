@@ -58,6 +58,7 @@ EXCLUDE_KEYWORDS = [
     "官庁訪問",
     "職員",
     "国家公務員",
+    "開催しました",
 ]
 
 items = []
@@ -136,7 +137,15 @@ for source_url in SOURCE_URLS:
         if not url.startswith(BASE_URL):
             continue
 
-        if url.lower().endswith(".pdf"):
+        if url.lower().endswith((
+            ".pdf",
+            ".doc",
+            ".docx",
+            ".xls",
+            ".xlsx",
+            ".ppt",
+            ".pptx",
+        )):
             continue
 
         if title in {
