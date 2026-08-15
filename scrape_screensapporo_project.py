@@ -44,6 +44,16 @@ EXCLUDE_TITLES = {
     "クリエイティブ産業振興課",
 }
 
+EXCLUDE_KEYWORDS = [
+    "公募は終了しました",
+    "終了しました",
+    "募集は締め切りました",
+    "ロケ地マップ",
+    "試写イベント開催レポート",
+    "新キャスト",
+    "ティザービジュアル",
+]
+
 for a in soup.find_all("a", href=True):
     title = a.get_text(" ", strip=True)
     title = re.sub(r"\s+", " ", title).strip()
@@ -54,6 +64,9 @@ for a in soup.find_all("a", href=True):
     if title in EXCLUDE_TITLES:
         continue
 
+    if any(keyword in title for keyword in EXCLUDE_KEYWORDS):
+        continue
+    
     href = a.get("href", "").strip()
 
     if not href:
