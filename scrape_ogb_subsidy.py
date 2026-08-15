@@ -45,6 +45,9 @@ EXCLUDE_KEYWORDS = [
     "調達",
     "入札",
     "落札",
+    "募集終了",
+    "中止について",
+    "採択結果",
 ]
 
 response = requests.get(
@@ -65,6 +68,9 @@ for a in soup.find_all("a", href=True):
     title = re.sub(r"\s+", " ", title).strip()
 
     if not title:
+        continue
+
+    if title == "公募情報":
         continue
 
     if not any(keyword in title for keyword in KEYWORDS):
