@@ -60,43 +60,31 @@ soup = BeautifulSoup(response.text, "html.parser")
 items = []
 seen = set()
 
-# 「新着情報」という文字を持つ要素を探す
+# 新着情報見出し
 news_heading = soup.find(
     lambda tag: (
         tag.name in ["h1", "h2", "h3", "h4", "div", "p"]
-        and "新着情報" in tag.get_text(" ", strip=True)
+        and tag.get_text(" ", strip=True) == "新着情報"
     )
 )
 
 if news_heading is None:
     raise RuntimeError("新着情報欄が見つかりません")
 
-# 新着情報の親ブロックを少しずつ広げて探す
-news_block = news_heading.parent
+# 新着情報以降の要素を順番に確認
+for element in news_heading.find_all_next():
 
-for _ in range(5):
-    if news_block is None:
+    text = element.get_text(" ", strip=True)
+    text = re.sub(r"\s+", " ", text).strip()
+
+    # 次の大きなセクションに入ったら終了
+    if text == "メールマガジン配信登録":
         break
 
-    text = news_block.get_text(" ", strip=True)
+    if element.name != "a":
+        continue
 
-    # 日付が複数あるブロックなら新着欄と判断
-    dates = re.findall(
-        r"20\d{2}/\d{2}/\d{2}",
-        text
-    )
-
-    if len(dates) >= 3:
-        break
-
-    news_block = news_block.parent
-
-if news_block is None:
-    raise RuntimeError("新着情報の本文ブロックが見つかりません")
-
-for a in news_block.find_all("a", href=True):
-    title = a.get_text(" ", strip=True)
-    title = re.sub(r"\s+", " ", title).strip()
+    title = text
 
     if not title:
         continue
@@ -104,7 +92,21 @@ for a in news_block.find_all("a", href=True):
     if any(keyword in title for keyword in EXCLUDE_KEYWORDS):
         continue
 
-    href = a.get("href", "").strip()
+    if any(keyword in title for keyword in [
+        "申込はこちら",
+        "参加申込フォーム",
+        "受講申込書はこちら",
+        "募集要領",
+        "公募要領",
+        "交付要領",
+        "申請様式",
+        "仕様書",
+        "様式類",
+        "こちら",
+    ]):
+        continue
+
+    href = element.get("href", "").strip()
 
     if not href:
         continue
@@ -128,22 +130,6 @@ for a in news_block.find_all("a", href=True):
     )):
         continue
 
-    # 申込フォーム等の補助リンクは除外
-    if any(keyword in title for keyword in [
-        "申込はこちら",
-        "参加申込フォーム",
-        "受講申込書はこちら",
-        "募集要領",
-        "公募要領",
-        "仕様書",
-        "様式類",
-        "申請様式",
-    ]):
-        continue
-
-    if len(title) < 8:
-        continue
-
     title = (
         title
         .replace("別ウィンドウで開きます", "")
@@ -152,6 +138,9 @@ for a in news_block.find_all("a", href=True):
     )
 
     title = re.sub(r"\s+", " ", title).strip()
+
+    if len(title) < 8:
+        continue
 
     key = (title, url)
 
