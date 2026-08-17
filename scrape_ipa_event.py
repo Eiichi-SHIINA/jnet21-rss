@@ -6,7 +6,6 @@ from urllib.parse import urljoin, urlparse
 from xml.etree.ElementTree import Element, SubElement, ElementTree
 
 SOURCE_URL = "https://www.ipa.go.jp/event/events-hold.html"
-BASE_URL = "https://www.ipa.go.jp/"
 OUTPUT_FILE = "ipa-event.xml"
 
 HEADERS = {
@@ -24,12 +23,6 @@ HEADERS = {
     "Pragma": "no-cache",
 }
 
-EXCLUDE_KEYWORDS = [
-    "終了しました",
-    "開催終了",
-    "講演資料公開",
-]
-
 response = requests.get(
     SOURCE_URL,
     headers=HEADERS,
@@ -43,45 +36,51 @@ soup = BeautifulSoup(response.text, "html.parser")
 items = []
 seen = set()
 
-for a in soup.find_all("a", href=True):
+# 「開催予定・開催中のイベント・セミナー」の見出しを探す
+heading = soup.find(
+    lambda tag: (
+        tag.name in ["h1", "h2", "h3"]
+        and "開催予定・開催中のイベント・セミナー"
+        in tag.get_text(" ", strip=True)
+    )
+)
+
+if heading is None:
+    raise RuntimeError("イベント一覧の見出しが見つかりません")
+
+# 見出し以降のリンクを順に取得
+for a in heading.find_all_next("a", href=True):
     title = a.get_text(" ", strip=True)
     title = re.sub(r"\s+", " ", title).strip()
 
     if not title:
         continue
 
-    if any(keyword in title for keyword in EXCLUDE_KEYWORDS):
-        continue
+    # 一覧の終端
+    if "イベント・セミナー一覧" in title:
+        break
 
     href = a.get("href", "").strip()
 
     if not href:
         continue
 
-    if href.startswith("#"):
-        continue
-
-    if href.startswith("javascript:"):
-        continue
-
     url = urljoin(SOURCE_URL, href)
     parsed = urlparse(url)
 
+    # IPA内のHTMLページだけ
     if parsed.netloc != "www.ipa.go.jp":
         continue
 
-    # IPAのイベント詳細ページを中心に取得
-    if not re.match(
-        r"^/event/\d{4}/.+\.html$",
-        parsed.path
-    ):
+    if not parsed.path.endswith(".html"):
         continue
 
-    title = (
+    # 申込状況・カテゴリ・日付などを含む長い表示から
+    # 余分な先頭ラベルだけ軽く除去
+    title = re.sub(
+        r"^(申込受付中|申込終了)\s+",
+        "",
         title
-        .replace("別ウィンドウで開く", "")
-        .replace("NEW", "")
-        .strip()
     )
 
     title = re.sub(r"\s+", " ", title).strip()
