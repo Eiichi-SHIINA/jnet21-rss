@@ -2,7 +2,7 @@ import re
 import hashlib
 import requests
 from bs4 import BeautifulSoup
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 from xml.etree.ElementTree import Element, SubElement, ElementTree
 
 SOURCE_URL = "https://www.kawasaki-net.ne.jp/news/"
@@ -28,10 +28,19 @@ EXCLUDE_KEYWORDS = [
     "採用情報",
     "職員募集",
     "入札",
-    "契約",
-    "休館",
-    "臨時休館",
+    "開催結果",
+    "結果発表",
+    "開催報告",
     "システムメンテナンス",
+    "休館",
+]
+
+EXCLUDE_PATHS = [
+    "/about/",
+    "/business/",
+    "/access/",
+    "/contact/",
+    "/news/",
 ]
 
 response = requests.get(
@@ -70,10 +79,17 @@ for a in soup.find_all("a", href=True):
 
     url = urljoin(SOURCE_URL, href)
 
-    if not url.startswith(BASE_URL):
+    parsed = urlparse(url)
+
+    # 川崎市産業振興財団ドメイン内だけ
+    if parsed.netloc != "www.kawasaki-net.ne.jp":
         continue
 
     if url.rstrip("/") == SOURCE_URL.rstrip("/"):
+        continue
+
+    # ナビゲーション・固定ページを除外
+    if any(parsed.path.startswith(path) for path in EXCLUDE_PATHS):
         continue
 
     if url.lower().endswith((
@@ -87,15 +103,17 @@ for a in soup.find_all("a", href=True):
     )):
         continue
 
-    # 個別のお知らせ・イベント記事だけを対象
-    if not re.match(
-        r"^https://www\.kawasaki-net\.ne\.jp/(info|event)/",
-        url
-    ):
-        continue
-
     if len(title) < 8:
         continue
+
+    title = (
+        title
+        .replace("詳細はこちら", "")
+        .replace("open_in_new", "")
+        .strip()
+    )
+
+    title = re.sub(r"\s+", " ", title)
 
     key = (title, url)
 
