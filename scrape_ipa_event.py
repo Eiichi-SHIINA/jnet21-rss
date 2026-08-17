@@ -23,6 +23,11 @@ HEADERS = {
     "Pragma": "no-cache",
 }
 
+EXCLUDE_PATHS = [
+    "/event/events-hold.html",
+    "/event/index.html",
+]
+
 response = requests.get(
     SOURCE_URL,
     headers=HEADERS,
@@ -37,19 +42,6 @@ items = []
 seen = set()
 
 for a in soup.find_all("a", href=True):
-    title = a.get_text(" ", strip=True)
-    title = re.sub(r"\s+", " ", title).strip()
-
-    if not title:
-        continue
-
-    # 開催予定・開催中一覧のイベントだけを対象
-    if not (
-        title.startswith("申込受付中")
-        or title.startswith("申込終了")
-    ):
-        continue
-
     href = a.get("href", "").strip()
 
     if not href:
@@ -64,26 +56,66 @@ for a in soup.find_all("a", href=True):
     url = urljoin(SOURCE_URL, href)
     parsed = urlparse(url)
 
-    # IPAサイト内だけ
+    # IPAサイト内のHTMLページだけ
     if parsed.netloc != "www.ipa.go.jp":
         continue
 
     if not parsed.path.endswith(".html"):
         continue
 
-    # 先頭の申込状況をタイトルから除去
-    title = re.sub(
-        r"^(申込受付中|申込終了)\s*",
-        "",
-        title
-    )
+    if parsed.path in EXCLUDE_PATHS:
+        continue
 
+    # リンクを含むイベントカード全体の文字列を取得
+    card = a
+
+    for _ in range(4):
+        parent = card.parent
+
+        if parent is None:
+            break
+
+        text = parent.get_text(" ", strip=True)
+        text = re.sub(r"\s+", " ", text).strip()
+
+        # イベントカードらしい要素
+        if (
+            ("申込受付中" in text or "申込終了" in text)
+            and (
+                "セミナー" in text
+                or "イベント" in text
+                or "説明会" in text
+                or "演習" in text
+                or "講座" in text
+            )
+        ):
+            card = parent
+            break
+
+        card = parent
+
+    title = card.get_text(" ", strip=True)
+    title = re.sub(r"\s+", " ", title).strip()
+
+    if not title:
+        continue
+
+    # イベントカードでないリンクは除外
+    if not (
+        "申込受付中" in title
+        or "申込終了" in title
+    ):
+        continue
+
+    # 申込状況だけ除去
+    title = title.replace("申込受付中", "")
+    title = title.replace("申込終了", "")
     title = re.sub(r"\s+", " ", title).strip()
 
     if len(title) < 8:
         continue
 
-    key = (title, url)
+    key = url
 
     if key in seen:
         continue
