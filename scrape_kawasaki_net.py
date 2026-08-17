@@ -79,7 +79,6 @@ for a in soup.find_all("a", href=True):
         continue
 
     url = urljoin(SOURCE_URL, href)
-
     parsed = urlparse(url)
 
     # 川崎市産業振興財団ドメイン内だけ
@@ -99,7 +98,7 @@ for a in soup.find_all("a", href=True):
         parsed.path
     ):
         continue
-    
+
     if url.lower().endswith((
         ".pdf",
         ".doc",
@@ -128,16 +127,21 @@ for a in soup.find_all("a", href=True):
         title
     )
 
-# 更新案内以降の本文を削除
-title = re.split(
-    r"\s+(?:イベントページを更新しました。|イベントの開催情報を掲載しました|令和8年熊本地震の発生に伴い|クレジットカード売上の早期決済代行サービス|「九都県市合同商談会in幕張メッセ2027」|昨年度に好評だった)",
-    title,
-    maxsplit=1,
-)[0]
+    # 更新案内以降の本文を削除
+    title = re.split(
+        r"\s+(?:"
+        r"イベントページを更新しました。"
+        r"|イベントの開催情報を掲載しました"
+        r"|令和8年熊本地震の発生に伴い"
+        r"|クレジットカード売上の早期決済代行サービス"
+        r"|「九都県市合同商談会in幕張メッセ2027」"
+        r"|昨年度に好評だった"
+        r")",
+        title,
+        maxsplit=1,
+    )[0]
 
-title = re.sub(r"\s+", " ", title).strip()
-
-    title = re.sub(r"\s+", " ", title)
+    title = re.sub(r"\s+", " ", title).strip()
 
     key = (title, url)
 
