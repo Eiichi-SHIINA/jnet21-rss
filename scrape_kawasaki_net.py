@@ -33,6 +33,7 @@ EXCLUDE_KEYWORDS = [
     "開催報告",
     "システムメンテナンス",
     "休館",
+    "PODCAST",
 ]
 
 EXCLUDE_PATHS = [
@@ -92,6 +93,13 @@ for a in soup.find_all("a", href=True):
     if any(parsed.path.startswith(path) for path in EXCLUDE_PATHS):
         continue
 
+    # お知らせ詳細記事だけを対象
+    if not re.match(
+        r"^/info\d{8}(?:-\d+)?/?$",
+        parsed.path
+    ):
+        continue
+    
     if url.lower().endswith((
         ".pdf",
         ".doc",
@@ -112,6 +120,22 @@ for a in soup.find_all("a", href=True):
         .replace("open_in_new", "")
         .strip()
     )
+
+    # 先頭のカテゴリ・日付を削除
+    title = re.sub(
+        r"^(お知らせ|セミナー・イベント)\s+\d{4}\.\d{2}\.\d{2}\s+",
+        "",
+        title
+    )
+
+# 更新案内以降の本文を削除
+title = re.split(
+    r"\s+(?:イベントページを更新しました。|イベントの開催情報を掲載しました|令和8年熊本地震の発生に伴い|クレジットカード売上の早期決済代行サービス|「九都県市合同商談会in幕張メッセ2027」|昨年度に好評だった)",
+    title,
+    maxsplit=1,
+)[0]
+
+title = re.sub(r"\s+", " ", title).strip()
 
     title = re.sub(r"\s+", " ", title)
 
