@@ -8,7 +8,6 @@ from requests.adapters import HTTPAdapter
 from xml.etree.ElementTree import Element, SubElement, ElementTree
 
 SOURCE_URL = "https://www.g-inf.or.jp/"
-BASE_URL = "https://www.g-inf.or.jp/"
 OUTPUT_FILE = "gunma-inf.xml"
 
 HEADERS = {
@@ -28,21 +27,19 @@ HEADERS = {
 
 EXCLUDE_KEYWORDS = [
     "交付決定",
+    "交付決定事業者",
     "採択結果",
     "公募型プロポーザル",
     "業務委託",
     "支援マネージャーの募集",
-    "採用",
-    "職員募集",
+    "事例紹介を更新",
+    "フィッシングメール",
 ]
 
 class LegacySSLAdapter(HTTPAdapter):
     def init_poolmanager(self, *args, **kwargs):
         context = ssl.create_default_context()
-
-        # 古いTLS設定のサーバーとの互換性を確保
         context.set_ciphers("DEFAULT@SECLEVEL=1")
-
         kwargs["ssl_context"] = context
         return super().init_poolmanager(*args, **kwargs)
 
@@ -63,7 +60,41 @@ soup = BeautifulSoup(response.text, "html.parser")
 items = []
 seen = set()
 
-for a in soup.find_all("a", href=True):
+# 「新着情報」という文字を持つ要素を探す
+news_heading = soup.find(
+    lambda tag: (
+        tag.name in ["h1", "h2", "h3", "h4", "div", "p"]
+        and "新着情報" in tag.get_text(" ", strip=True)
+    )
+)
+
+if news_heading is None:
+    raise RuntimeError("新着情報欄が見つかりません")
+
+# 新着情報の親ブロックを少しずつ広げて探す
+news_block = news_heading.parent
+
+for _ in range(5):
+    if news_block is None:
+        break
+
+    text = news_block.get_text(" ", strip=True)
+
+    # 日付が複数あるブロックなら新着欄と判断
+    dates = re.findall(
+        r"20\d{2}/\d{2}/\d{2}",
+        text
+    )
+
+    if len(dates) >= 3:
+        break
+
+    news_block = news_block.parent
+
+if news_block is None:
+    raise RuntimeError("新着情報の本文ブロックが見つかりません")
+
+for a in news_block.find_all("a", href=True):
     title = a.get_text(" ", strip=True)
     title = re.sub(r"\s+", " ", title).strip()
 
@@ -86,12 +117,6 @@ for a in soup.find_all("a", href=True):
 
     url = urljoin(SOURCE_URL, href)
 
-    if not url.startswith(BASE_URL):
-        continue
-
-    if url.rstrip("/") == SOURCE_URL.rstrip("/"):
-        continue
-
     if url.lower().endswith((
         ".pdf",
         ".doc",
@@ -103,13 +128,26 @@ for a in soup.find_all("a", href=True):
     )):
         continue
 
+    # 申込フォーム等の補助リンクは除外
+    if any(keyword in title for keyword in [
+        "申込はこちら",
+        "参加申込フォーム",
+        "受講申込書はこちら",
+        "募集要領",
+        "公募要領",
+        "仕様書",
+        "様式類",
+        "申請様式",
+    ]):
+        continue
+
     if len(title) < 8:
         continue
 
     title = (
         title
-        .replace("詳細を見る", "")
         .replace("別ウィンドウで開きます", "")
+        .replace("PDFファイルが別ウィンドウで開きます", "")
         .strip()
     )
 
