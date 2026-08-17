@@ -1,8 +1,10 @@
 import re
+import ssl
 import hashlib
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
+from requests.adapters import HTTPAdapter
 from xml.etree.ElementTree import Element, SubElement, ElementTree
 
 SOURCE_URL = "https://www.g-inf.or.jp/"
@@ -25,13 +27,30 @@ HEADERS = {
 }
 
 EXCLUDE_KEYWORDS = [
-    "採用情報",
+    "交付決定",
+    "採択結果",
+    "公募型プロポーザル",
+    "業務委託",
+    "支援マネージャーの募集",
+    "採用",
     "職員募集",
-    "契約職員",
-    "嘱託職員",
 ]
 
-response = requests.get(
+class LegacySSLAdapter(HTTPAdapter):
+    def init_poolmanager(self, *args, **kwargs):
+        context = ssl.create_default_context()
+
+        # 古いTLS設定のサーバーとの互換性を確保
+        context.set_ciphers("DEFAULT@SECLEVEL=1")
+
+        kwargs["ssl_context"] = context
+        return super().init_poolmanager(*args, **kwargs)
+
+
+session = requests.Session()
+session.mount("https://", LegacySSLAdapter())
+
+response = session.get(
     SOURCE_URL,
     headers=HEADERS,
     timeout=60,
@@ -84,16 +103,17 @@ for a in soup.find_all("a", href=True):
     )):
         continue
 
-    # 新着欄の記事らしいリンクを対象
-    if not (
-        "/html/" in url
-        or "/topics/" in url
-        or "/news/" in url
-    ):
-        continue
-
     if len(title) < 8:
         continue
+
+    title = (
+        title
+        .replace("詳細を見る", "")
+        .replace("別ウィンドウで開きます", "")
+        .strip()
+    )
+
+    title = re.sub(r"\s+", " ", title).strip()
 
     key = (title, url)
 
@@ -120,7 +140,7 @@ SubElement(
     channel,
     "description"
 ).text = (
-    "群馬県産業支援機構の公募・補助金・セミナー・支援等の新着情報"
+    "群馬県産業支援機構のセミナー・募集・補助金・支援等の新着情報"
 )
 
 for title, url in items[:30]:
