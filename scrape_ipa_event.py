@@ -23,11 +23,6 @@ HEADERS = {
     "Pragma": "no-cache",
 }
 
-EXCLUDE_PATHS = [
-    "/event/events-hold.html",
-    "/event/index.html",
-]
-
 response = requests.get(
     SOURCE_URL,
     headers=HEADERS,
@@ -42,6 +37,19 @@ items = []
 seen = set()
 
 for a in soup.find_all("a", href=True):
+    title = a.get_text(" ", strip=True)
+    title = re.sub(r"\s+", " ", title).strip()
+
+    if not title:
+        continue
+
+    # 「申込 受付中」「申込受付中」「申込 終了」などに対応
+    if not re.match(
+        r"^申込\s*(受付中|終了)\b",
+        title
+    ):
+        continue
+
     href = a.get("href", "").strip()
 
     if not href:
@@ -56,71 +64,31 @@ for a in soup.find_all("a", href=True):
     url = urljoin(SOURCE_URL, href)
     parsed = urlparse(url)
 
-    # IPAサイト内のHTMLページだけ
+    # IPAサイト内だけ
     if parsed.netloc != "www.ipa.go.jp":
         continue
 
+    # HTML詳細ページだけ
     if not parsed.path.endswith(".html"):
         continue
 
-    if parsed.path in EXCLUDE_PATHS:
-        continue
+    # 申込状況をタイトルから除去
+    title = re.sub(
+        r"^申込\s*(受付中|終了)\s*",
+        "",
+        title
+    )
 
-    # リンクを含むイベントカード全体の文字列を取得
-    card = a
-
-    for _ in range(4):
-        parent = card.parent
-
-        if parent is None:
-            break
-
-        text = parent.get_text(" ", strip=True)
-        text = re.sub(r"\s+", " ", text).strip()
-
-        # イベントカードらしい要素
-        if (
-            ("申込受付中" in text or "申込終了" in text)
-            and (
-                "セミナー" in text
-                or "イベント" in text
-                or "説明会" in text
-                or "演習" in text
-                or "講座" in text
-            )
-        ):
-            card = parent
-            break
-
-        card = parent
-
-    title = card.get_text(" ", strip=True)
-    title = re.sub(r"\s+", " ", title).strip()
-
-    if not title:
-        continue
-
-    # イベントカードでないリンクは除外
-    if not (
-        "申込受付中" in title
-        or "申込終了" in title
-    ):
-        continue
-
-    # 申込状況だけ除去
-    title = title.replace("申込受付中", "")
-    title = title.replace("申込終了", "")
     title = re.sub(r"\s+", " ", title).strip()
 
     if len(title) < 8:
         continue
 
-    key = url
-
-    if key in seen:
+    # URL単位で重複除去
+    if url in seen:
         continue
 
-    seen.add(key)
+    seen.add(url)
     items.append((title, url))
 
 rss = Element("rss", version="2.0")
@@ -146,8 +114,15 @@ SubElement(
 for title, url in items[:30]:
     item = SubElement(channel, "item")
 
-    SubElement(item, "title").text = title
-    SubElement(item, "link").text = url
+    SubElement(
+        item,
+        "title"
+    ).text = title
+
+    SubElement(
+        item,
+        "link"
+    ).text = url
 
     unique_id = hashlib.sha256(
         f"{title}|{url}".encode("utf-8")
