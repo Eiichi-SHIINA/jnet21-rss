@@ -1,8 +1,6 @@
 name: Update Gunma Inf RSS
 
 on:
-  schedule:
-    - cron: "20 */6 * * *"
   workflow_dispatch:
 
 permissions:
