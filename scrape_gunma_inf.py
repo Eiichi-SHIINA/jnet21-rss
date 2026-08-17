@@ -2,7 +2,7 @@ import re
 import ssl
 import hashlib
 import requests
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, NavigableString
 from urllib.parse import urljoin
 from requests.adapters import HTTPAdapter
 from xml.etree.ElementTree import Element, SubElement, ElementTree
@@ -26,8 +26,8 @@ HEADERS = {
 }
 
 EXCLUDE_KEYWORDS = [
-    "交付決定",
     "交付決定事業者",
+    "交付決定者",
     "採択結果",
     "公募型プロポーザル",
     "業務委託",
@@ -35,6 +35,22 @@ EXCLUDE_KEYWORDS = [
     "事例紹介を更新",
     "フィッシングメール",
 ]
+
+LINK_EXCLUDE_KEYWORDS = [
+    "申込",
+    "お申込",
+    "申し込み",
+    "募集要領",
+    "公募要領",
+    "交付要領",
+    "仕様書",
+    "様式",
+    "こちら",
+    "PDF",
+]
+
+DATE_PATTERN = re.compile(r"^20\d{2}/\d{2}/\d{2}$")
+
 
 class LegacySSLAdapter(HTTPAdapter):
     def init_poolmanager(self, *args, **kwargs):
@@ -57,10 +73,7 @@ response.raise_for_status()
 response.encoding = response.apparent_encoding
 soup = BeautifulSoup(response.text, "html.parser")
 
-items = []
-seen = set()
-
-# 新着情報見出し
+# 新着情報の見出しを探す
 news_heading = soup.find(
     lambda tag: (
         tag.name in ["h1", "h2", "h3", "h4", "div", "p"]
@@ -71,64 +84,150 @@ news_heading = soup.find(
 if news_heading is None:
     raise RuntimeError("新着情報欄が見つかりません")
 
-# 新着情報以降の要素を順番に確認
-for element in news_heading.find_all_next():
+items = []
+current_date = None
+current_title = None
+current_url = None
 
-    text = element.get_text(" ", strip=True)
+started = False
+
+for node in news_heading.find_all_next():
+
+    if isinstance(node, NavigableString):
+        continue
+
+    text = node.get_text(" ", strip=True)
     text = re.sub(r"\s+", " ", text).strip()
 
-    # 次の大きなセクションに入ったら終了
+    if not text:
+        continue
+
+    # 新着情報の次のセクションで終了
     if text == "メールマガジン配信登録":
         break
 
-    if element.name != "a":
+    # 日付を検出
+    if DATE_PATTERN.fullmatch(text):
+
+        # 前の記事を保存
+        if current_date and current_title:
+            if not any(
+                keyword in current_title
+                for keyword in EXCLUDE_KEYWORDS
+            ):
+                items.append((
+                    current_date,
+                    current_title,
+                    current_url or SOURCE_URL
+                ))
+
+        current_date = text
+        current_title = None
+        current_url = None
+        started = True
         continue
 
-    title = text
-
-    if not title:
+    if not started or current_date is None:
         continue
 
-    if any(keyword in title for keyword in EXCLUDE_KEYWORDS):
+    # 日付直後の最初の適切な文字列をタイトルにする
+    if current_title is None:
+
+        # 説明文やボタン類をタイトルにしない
+        if any(
+            text.startswith(prefix)
+            for prefix in [
+                "日時",
+                "会場",
+                "対象",
+                "定員",
+                "受講料",
+                "参加費",
+                "締切",
+                "申込",
+                "お問合わせ",
+                "募集期間",
+                "設置期間",
+                "相談窓口",
+                "貸出",
+            ]
+        ):
+            continue
+
+        if len(text) < 8:
+            continue
+
+        # 長い説明文はタイトルではない
+        if len(text) > 180:
+            continue
+
+        current_title = text
+
+        # タイトル自体がリンクならそのURLを使う
+        if node.name == "a" and node.get("href"):
+            href = node.get("href", "").strip()
+
+            if href and not href.lower().endswith((
+                ".pdf",
+                ".doc",
+                ".docx",
+                ".xls",
+                ".xlsx",
+                ".ppt",
+                ".pptx",
+            )):
+                current_url = urljoin(SOURCE_URL, href)
+
         continue
 
-    if any(keyword in title for keyword in [
-        "申込はこちら",
-        "参加申込フォーム",
-        "受講申込書はこちら",
-        "募集要領",
-        "公募要領",
-        "交付要領",
-        "申請様式",
-        "仕様書",
-        "様式類",
-        "こちら",
-    ]):
-        continue
+    # タイトルにリンクがない記事は関連リンクを探す
+    if current_url is None and node.name == "a":
+        href = node.get("href", "").strip()
+        link_text = text
 
-    href = element.get("href", "").strip()
+        if not href:
+            continue
 
-    if not href:
-        continue
+        if any(
+            keyword in link_text
+            for keyword in LINK_EXCLUDE_KEYWORDS
+        ):
+            continue
 
-    if href.startswith("#"):
-        continue
+        url = urljoin(SOURCE_URL, href)
 
-    if href.startswith("javascript:"):
-        continue
+        if url.lower().endswith((
+            ".pdf",
+            ".doc",
+            ".docx",
+            ".xls",
+            ".xlsx",
+            ".ppt",
+            ".pptx",
+        )):
+            continue
 
-    url = urljoin(SOURCE_URL, href)
+        current_url = url
 
-    if url.lower().endswith((
-        ".pdf",
-        ".doc",
-        ".docx",
-        ".xls",
-        ".xlsx",
-        ".ppt",
-        ".pptx",
-    )):
-        continue
+
+# 最後の記事を保存
+if current_date and current_title:
+    if not any(
+        keyword in current_title
+        for keyword in EXCLUDE_KEYWORDS
+    ):
+        items.append((
+            current_date,
+            current_title,
+            current_url or SOURCE_URL
+        ))
+
+
+# 重複除去
+clean_items = []
+seen = set()
+
+for date, title, url in items:
 
     title = (
         title
@@ -139,16 +238,14 @@ for element in news_heading.find_all_next():
 
     title = re.sub(r"\s+", " ", title).strip()
 
-    if len(title) < 8:
-        continue
-
-    key = (title, url)
+    key = (date, title)
 
     if key in seen:
         continue
 
     seen.add(key)
-    items.append((title, url))
+    clean_items.append((date, title, url))
+
 
 rss = Element("rss", version="2.0")
 channel = SubElement(rss, "channel")
@@ -170,21 +267,31 @@ SubElement(
     "群馬県産業支援機構のセミナー・募集・補助金・支援等の新着情報"
 )
 
-for title, url in items[:30]:
+for date, title, url in clean_items[:30]:
+
     item = SubElement(channel, "item")
 
-    SubElement(item, "title").text = title
-    SubElement(item, "link").text = url
+    SubElement(
+        item,
+        "title"
+    ).text = title
 
-    unique_text = f"{title}|{url}"
+    SubElement(
+        item,
+        "link"
+    ).text = url
+
+    unique_text = f"{date}|{title}"
 
     unique_id = hashlib.sha256(
         unique_text.encode("utf-8")
     ).hexdigest()
 
-    SubElement(item, "guid").text = (
-        f"urn:gunma-inf:{unique_id}"
-    )
+    SubElement(
+        item,
+        "guid"
+    ).text = f"urn:gunma-inf:{unique_id}"
+
 
 ElementTree(rss).write(
     OUTPUT_FILE,
@@ -194,5 +301,5 @@ ElementTree(rss).write(
 
 print(
     OUTPUT_FILE,
-    len(items[:30])
+    len(clean_items[:30])
 )
