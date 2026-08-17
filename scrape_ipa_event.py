@@ -36,49 +36,44 @@ soup = BeautifulSoup(response.text, "html.parser")
 items = []
 seen = set()
 
-# 「開催予定・開催中のイベント・セミナー」の見出しを探す
-heading = soup.find(
-    lambda tag: (
-        tag.name in ["h1", "h2", "h3"]
-        and "開催予定・開催中のイベント・セミナー"
-        in tag.get_text(" ", strip=True)
-    )
-)
-
-if heading is None:
-    raise RuntimeError("イベント一覧の見出しが見つかりません")
-
-# 見出し以降のリンクを順に取得
-for a in heading.find_all_next("a", href=True):
+for a in soup.find_all("a", href=True):
     title = a.get_text(" ", strip=True)
     title = re.sub(r"\s+", " ", title).strip()
 
     if not title:
         continue
 
-    # 一覧の終端
-    if "イベント・セミナー一覧" in title:
-        break
+    # 開催予定・開催中一覧のイベントだけを対象
+    if not (
+        title.startswith("申込受付中")
+        or title.startswith("申込終了")
+    ):
+        continue
 
     href = a.get("href", "").strip()
 
     if not href:
         continue
 
+    if href.startswith("#"):
+        continue
+
+    if href.startswith("javascript:"):
+        continue
+
     url = urljoin(SOURCE_URL, href)
     parsed = urlparse(url)
 
-    # IPA内のHTMLページだけ
+    # IPAサイト内だけ
     if parsed.netloc != "www.ipa.go.jp":
         continue
 
     if not parsed.path.endswith(".html"):
         continue
 
-    # 申込状況・カテゴリ・日付などを含む長い表示から
-    # 余分な先頭ラベルだけ軽く除去
+    # 先頭の申込状況をタイトルから除去
     title = re.sub(
-        r"^(申込受付中|申込終了)\s+",
+        r"^(申込受付中|申込終了)\s*",
         "",
         title
     )
