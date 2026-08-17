@@ -33,6 +33,10 @@ EXCLUDE_KEYWORDS = [
     "職員募集",
     "入札",
     "契約職員",
+    "開催の見送り",
+    "賃貸借契約",
+    "業務委託",
+    "企画提案競技",
 ]
 
 response = requests.get(
