@@ -2,11 +2,10 @@ import re
 import hashlib
 import requests
 from bs4 import BeautifulSoup
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin
 from xml.etree.ElementTree import Element, SubElement, ElementTree
 
 SOURCE_URL = "https://www.aibsc.jp/news/"
-BASE_URL = "https://www.aibsc.jp/"
 OUTPUT_FILE = "aibsc-news.xml"
 
 HEADERS = {
@@ -25,13 +24,12 @@ HEADERS = {
 }
 
 EXCLUDE_KEYWORDS = [
-    "採用情報",
+    "マネージャーを募集",
     "職員募集",
+    "採用",
     "入札",
-    "休館",
-    "メンテナンス",
+    "採択企業",
     "採択結果",
-    "開催報告",
 ]
 
 response = requests.get(
@@ -47,6 +45,7 @@ soup = BeautifulSoup(response.text, "html.parser")
 items = []
 seen = set()
 
+# 日付が表示されている新着欄のリンクだけを取得
 for a in soup.find_all("a", href=True):
     title = a.get_text(" ", strip=True)
     title = re.sub(r"\s+", " ", title).strip()
@@ -58,44 +57,31 @@ for a in soup.find_all("a", href=True):
         continue
 
     href = a.get("href", "").strip()
-
-    if not href:
-        continue
-
-    if href.startswith("#"):
-        continue
-
-    if href.startswith("javascript:"):
-        continue
-
     url = urljoin(SOURCE_URL, href)
-    parsed = urlparse(url)
 
-    if parsed.netloc != "www.aibsc.jp":
-        continue
-
-    if url.rstrip("/") == SOURCE_URL.rstrip("/"):
-        continue
-
-    if url.lower().endswith((
-        ".pdf",
-        ".doc",
-        ".docx",
-        ".xls",
-        ".xlsx",
-        ".ppt",
-        ".pptx",
-    )):
-        continue
-
-    # 個別記事を中心に取得
-    if not (
-        "/news/" in parsed.path
-        or "/support/" in parsed.path
+    # 新着記事は support 配下
+    if not re.match(
+        r"^https://www\.aibsc\.jp/support/\d+/?$",
+        url
     ):
         continue
 
-    if len(title) < 8:
+    # 親要素付近に掲載日があるものだけ＝新着欄
+    parent_text = ""
+    parent = a.parent
+
+    for _ in range(4):
+        if parent is None:
+            break
+
+        parent_text = parent.get_text(" ", strip=True)
+
+        if re.search(r"20\d{2}-\d{2}-\d{2}", parent_text):
+            break
+
+        parent = parent.parent
+
+    if not re.search(r"20\d{2}-\d{2}-\d{2}", parent_text):
         continue
 
     title = (
