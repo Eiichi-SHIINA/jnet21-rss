@@ -1,7 +1,9 @@
+import re
+import hashlib
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
-import xml.etree.ElementTree as ET
+from xml.etree.ElementTree import Element, SubElement, ElementTree
 
 SOURCE_URL = "https://direct.jfc.go.jp/w110_SeminarList"
 OUTPUT_FILE = "jfc-seminar.xml"
@@ -9,160 +11,103 @@ MAX_ITEMS = 30
 
 HEADERS = {
     "User-Agent": (
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
         "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/140.0 Safari/537.36"
-    )
+        "Chrome/139.0.0.0 Safari/537.36"
+    ),
+    "Accept": (
+        "text/html,application/xhtml+xml,application/xml;q=0.9,"
+        "image/avif,image/webp,image/apng,*/*;q=0.8"
+    ),
+    "Accept-Language": "ja-JP,ja;q=0.9,en-US;q=0.8,en;q=0.7",
+    "Cache-Control": "no-cache",
+    "Pragma": "no-cache",
 }
 
+response = requests.get(
+    SOURCE_URL,
+    headers=HEADERS,
+    timeout=60,
+)
+response.raise_for_status()
 
-def clean_parts(strings):
-    """連続して重複する表示用テキストを除去する"""
-    result = []
+response.encoding = response.apparent_encoding
+soup = BeautifulSoup(response.text, "html.parser")
 
-    for text in strings:
-        text = " ".join(text.split())
+items = []
+seen = set()
 
-        if not text:
-            continue
+for a in soup.find_all("a", href=True):
+    href = a.get("href", "").strip()
 
-        if result and result[-1] == text:
-            continue
+    if "w112_SeminarApply?id=" not in href:
+        continue
 
-        result.append(text)
+    title = a.get_text(" ", strip=True)
+    title = re.sub(r"\s+", " ", title).strip()
 
-    return result
+    if not title:
+        continue
 
+    url = urljoin(SOURCE_URL, href)
 
-def fetch_items():
-    response = requests.get(
-        SOURCE_URL,
-        headers=HEADERS,
-        timeout=30,
-    )
-    response.raise_for_status()
+    # URL単位で重複除去
+    if url in seen:
+        continue
 
-    response.encoding = response.apparent_encoding
+    seen.add(url)
+    items.append((title, url))
 
-    soup = BeautifulSoup(response.text, "html.parser")
+if not items:
+    raise RuntimeError("RSS対象を1件も取得できませんでした")
 
-    items = []
-    seen_urls = set()
+rss = Element("rss", version="2.0")
+channel = SubElement(rss, "channel")
 
-    for anchor in soup.find_all(
-        "a",
-        href=lambda href: href and "w112_SeminarApply?id=" in href
-    ):
-        title = " ".join(anchor.get_text(" ", strip=True).split())
+SubElement(
+    channel,
+    "title"
+).text = "日本政策金融公庫 セミナー情報"
 
-        if not title:
-            continue
+SubElement(
+    channel,
+    "link"
+).text = SOURCE_URL
 
-        link = urljoin(SOURCE_URL, anchor["href"])
+SubElement(
+    channel,
+    "description"
+).text = "日本政策金融公庫のセミナー情報"
 
-        # 同じオンラインセミナー等が複数地域に掲載されるため
-        # 詳細URL単位で重複排除
-        if link in seen_urls:
-            continue
+for title, url in items[:MAX_ITEMS]:
+    item = SubElement(channel, "item")
 
-        seen_urls.add(link)
-
-        parent = anchor.find_parent("li")
-
-        description = ""
-
-        if parent:
-            parts = clean_parts(parent.stripped_strings)
-
-            # タイトル自体はdescriptionから除外
-            info_parts = [
-                part for part in parts
-                if part != title
-            ]
-
-            description = " / ".join(info_parts)
-
-        items.append({
-            "title": title,
-            "link": link,
-            "description": description,
-        })
-
-        if len(items) >= MAX_ITEMS:
-            break
-
-    return items
-
-
-def build_rss(items):
-    rss = ET.Element(
-        "rss",
-        version="2.0"
-    )
-
-    channel = ET.SubElement(rss, "channel")
-
-    ET.SubElement(
-        channel,
+    SubElement(
+        item,
         "title"
-    ).text = "日本政策金融公庫｜セミナー情報"
+    ).text = title
 
-    ET.SubElement(
-        channel,
+    SubElement(
+        item,
         "link"
-    ).text = SOURCE_URL
+    ).text = url
 
-    ET.SubElement(
-        channel,
-        "description"
-    ).text = "日本政策金融公庫のセミナー情報一覧"
+    unique_id = hashlib.sha256(
+        f"{title}|{url}".encode("utf-8")
+    ).hexdigest()
 
-    for item_data in items:
-        item = ET.SubElement(channel, "item")
+    SubElement(
+        item,
+        "guid"
+    ).text = f"urn:jfc-seminar:{unique_id}"
 
-        ET.SubElement(
-            item,
-            "title"
-        ).text = item_data["title"]
+ElementTree(rss).write(
+    OUTPUT_FILE,
+    encoding="utf-8",
+    xml_declaration=True,
+)
 
-        ET.SubElement(
-            item,
-            "link"
-        ).text = item_data["link"]
-
-        ET.SubElement(
-            item,
-            "guid",
-            isPermaLink="true"
-        ).text = item_data["link"]
-
-        if item_data["description"]:
-            ET.SubElement(
-                item,
-                "description"
-            ).text = item_data["description"]
-
-    tree = ET.ElementTree(rss)
-    ET.indent(tree, space="  ")
-
-    tree.write(
-        OUTPUT_FILE,
-        encoding="utf-8",
-        xml_declaration=True
-    )
-
-
-def main():
-    items = fetch_items()
-
-    if not items:
-        raise RuntimeError("セミナー情報を取得できませんでした")
-
-    build_rss(items)
-
-    print(f"{len(items)}件を取得しました")
-    print(f"{OUTPUT_FILE} を生成しました")
-
-
-if __name__ == "__main__":
-    main()
+print(
+    OUTPUT_FILE,
+    len(items[:MAX_ITEMS])
+)
