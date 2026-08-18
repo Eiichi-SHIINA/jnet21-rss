@@ -35,7 +35,8 @@ response.encoding = response.apparent_encoding
 soup = BeautifulSoup(response.text, "html.parser")
 
 items = []
-seen = set()
+seen_urls = set()
+seen_titles = set()
 
 for a in soup.find_all("a", href=True):
     href = a.get("href", "").strip()
@@ -52,10 +53,16 @@ for a in soup.find_all("a", href=True):
     url = urljoin(SOURCE_URL, href)
 
     # URL単位で重複除去
-    if url in seen:
+    if url in seen_urls:
         continue
 
-    seen.add(url)
+    # 同一タイトルの地域別重複掲載を除去
+    if title in seen_titles:
+        continue
+
+    seen_urls.add(url)
+    seen_titles.add(title)
+
     items.append((title, url))
 
 if not items:
